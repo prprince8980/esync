@@ -15,6 +15,7 @@ function publicUser(user) {
     fullName: user.fullName,
     email: user.email,
     userType: user.userType,
+    rememberMe: Boolean(user.rememberMe),
     industryNumber: user.industryNumber || '',
     city: user.city || '',
     state: user.state || '',
@@ -67,8 +68,9 @@ export async function signup(req, res) {
 }
 
 export async function signin(req, res) {
-  const { email, password } = req.body ?? {}
+  const { email, password, rememberMe } = req.body ?? {}
   const normalizedEmail = normalizeEmail(email)
+  const shouldRemember = Boolean(rememberMe)
 
   if (!normalizedEmail || !password) {
     return res.status(400).json({ success: false, message: 'Email and password are required.' })
@@ -88,8 +90,18 @@ export async function signin(req, res) {
       throw new Error('JWT_SECRET is not configured')
     }
 
+    const updatedUser = await User.findByIdAndUpdate(
+      user._id,
+      {
+        rememberMe: shouldRemember,
+        rememberedAt: shouldRemember ? new Date() : null,
+        lastLoginAt: new Date()
+      },
+      { new: true }
+    ).select('+passwordHash')
+
     const token = jwt.sign({ sub: user._id.toString(), userType: user.userType }, process.env.JWT_SECRET, { expiresIn: '7d' })
-    return res.json({ success: true, message: 'Login successful.', token, user: publicUser(user) })
+    return res.json({ success: true, message: 'Login successful.', token, user: publicUser(updatedUser || user) })
   } catch (error) {
     if (error.message === 'JWT_SECRET is not configured') {
       console.error(error.message)

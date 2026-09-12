@@ -27,6 +27,18 @@ const userSchema = new mongoose.Schema(
       required: true,
       enum: ['household', 'ev_owner', 'industry']
     },
+    rememberMe: {
+      type: Boolean,
+      default: false
+    },
+    rememberedAt: {
+      type: Date,
+      default: null
+    },
+    lastLoginAt: {
+      type: Date,
+      default: null
+    },
     industryNumber: {
       type: String,
       trim: true,

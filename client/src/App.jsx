@@ -55,10 +55,28 @@ function App() {
   const [evNumber, setEvNumber] = useState('')
   const [evVehicle, setEvVehicle] = useState(null)
   const [industryLoginOpen, setIndustryLoginOpen] = useState(false)
-  const [form, setForm] = useState({ fullName: '', email: '', password: '', confirmPassword: '', userType: '', industryNumber: '' })
+  const [form, setForm] = useState({ fullName: '', email: '', password: '', confirmPassword: '', userType: '', industryNumber: '', rememberMe: false })
 
   useEffect(() => {
     const splashTimer = window.setTimeout(() => setShowSplash(false), 2000)
+    const savedToken = window.localStorage.getItem('esync_token')
+    const savedUser = window.localStorage.getItem('esync_user')
+
+    if (savedToken && savedUser) {
+      try {
+        const parsedUser = JSON.parse(savedUser)
+        setWelcomeUser(parsedUser)
+        setRoleUser(parsedUser)
+        if (parsedUser.userType === 'household') {
+          setHouseholdUser(parsedUser)
+          setHouseholdFlowStep('mode')
+        }
+      } catch {
+        window.localStorage.removeItem('esync_token')
+        window.localStorage.removeItem('esync_user')
+      }
+    }
+
     return () => window.clearTimeout(splashTimer)
   }, [])
 
@@ -74,6 +92,7 @@ function App() {
     setEvVehicle(null)
     setEvNumber('')
     setIndustryLoginOpen(false)
+    setForm((current) => ({ ...current, rememberMe: false }))
   }
 
   const validate = () => {
@@ -89,6 +108,10 @@ function App() {
 
   const handleSubmit = async (event) => {
     event.preventDefault()
+    if (industryLoginOpen && !form.industryNumber.trim()) {
+      setStatus({ type: 'error', message: 'Enter your registered Industry Number to continue.' })
+      return
+    }
     const validationMessage = validate()
     if (validationMessage) {
       setStatus({ type: 'error', message: validationMessage })
@@ -104,8 +127,9 @@ function App() {
         setForm((current) => ({ ...current, password: '', confirmPassword: '', industryNumber: '' }))
         setMode('signin')
       } else {
-        const response = await signin({ email: form.email, password: form.password })
+        const response = await signin({ email: form.email, password: form.password, rememberMe: form.rememberMe })
         localStorage.setItem('esync_token', response.token)
+        localStorage.setItem('esync_user', JSON.stringify(response.user))
 
         if (response.user.userType === 'household') {
           setHouseholdUser(response.user)
@@ -120,7 +144,9 @@ function App() {
         if (response.user.userType === 'industry') {
           const industryNumber = form.industryNumber?.trim().toUpperCase()
           if (!industryNumber) {
-            setStatus({ type: 'error', message: 'Please enter a valid Industry Number.' })
+            setIndustryLoginOpen(true)
+            setForm((current) => ({ ...current, industryNumber: response.user.industryNumber || '' }))
+            setStatus({ type: 'info', message: 'Enter your registered Industry Number to continue.' })
             return
           }
           const verified = await loginIndustry({ industryNumber })
@@ -213,11 +239,11 @@ function App() {
                 <span className="household-choice-copy">Automatically connect and manage your registered home using your Home ID.</span>
               </button>
               <button type="button" className="household-choice-card" onClick={() => handleHouseholdModeSelect('normal')}>
-                <span className="household-choice-title">NORMAL</span>
-                <span className="household-choice-copy">Continue with normal Householder functionality without automatic home connection.</span>
+                <span className="household-choice-title">MANUAL</span>
+                <span className="household-choice-copy">Continue with manual Householder functionality without automatic home connection.</span>
               </button>
             </div>
-            <button className="submit-button secondary-button" type="button" onClick={() => { setHouseholdUser(null); setHouseholdFlowStep('select'); setHouseholdHomeName(''); setHouseholdHomeId(''); setHouseholdModeStatus({ type: '', message: '' }); setMode('signin'); setForm((current) => ({ ...current, password: '', industryNumber: '' })) }}>
+            <button className="submit-button secondary-button" type="button" onClick={() => { localStorage.removeItem('esync_token'); localStorage.removeItem('esync_user'); setHouseholdUser(null); setHouseholdFlowStep('select'); setHouseholdHomeName(''); setHouseholdHomeId(''); setHouseholdModeStatus({ type: '', message: '' }); setMode('signin'); setForm((current) => ({ ...current, password: '', industryNumber: '', rememberMe: false })) }}>
               Back to sign in
             </button>
           </section>
@@ -252,7 +278,7 @@ function App() {
             </form>
             <div className="household-flow-actions">
               <button type="button" className="text-button" onClick={() => { setHouseholdFlowStep('mode'); setHouseholdModeStatus({ type: '', message: '' }) }}>Back</button>
-              <button type="button" className="text-button" onClick={() => { setHouseholdUser(null); setHouseholdFlowStep('select'); setHouseholdHomeName(''); setHouseholdHomeId(''); setHouseholdModeStatus({ type: '', message: '' }); setMode('signin'); setForm((current) => ({ ...current, password: '', industryNumber: '' })) }}>Log out</button>
+              <button type="button" className="text-button" onClick={() => { localStorage.removeItem('esync_token'); localStorage.removeItem('esync_user'); setHouseholdUser(null); setHouseholdFlowStep('select'); setHouseholdHomeName(''); setHouseholdHomeId(''); setHouseholdModeStatus({ type: '', message: '' }); setMode('signin'); setForm((current) => ({ ...current, password: '', industryNumber: '', rememberMe: false })) }}>Log out</button>
             </div>
           </section>
         </div>
@@ -312,7 +338,7 @@ function App() {
               <button className="submit-button" type="submit" disabled={isLoading}>{isLoading ? 'Checking EV...' : 'Open dashboard'} <ArrowRight size={17} /></button>
             </form>
             <div className="household-flow-actions">
-              <button type="button" className="text-button" onClick={() => { localStorage.removeItem('esync_token'); setRoleUser(null); setEvVehicle(null); setEvNumber(''); setEvLoginOpen(false); setMode('signin'); setForm((current) => ({ ...current, password: '', industryNumber: '' })); setStatus({ type: '', message: '' }) }}>Back to sign in</button>
+              <button type="button" className="text-button" onClick={() => { localStorage.removeItem('esync_token'); localStorage.removeItem('esync_user'); setRoleUser(null); setEvVehicle(null); setEvNumber(''); setEvLoginOpen(false); setMode('signin'); setForm((current) => ({ ...current, password: '', industryNumber: '', rememberMe: false })); setStatus({ type: '', message: '' }) }}>Back to sign in</button>
             </div>
           </section>
         </div>
@@ -365,7 +391,7 @@ function App() {
               {status.message && <div className={`status-message ${status.type}`} role="alert">{status.message}</div>}
               <button className="submit-button" type="submit" disabled={isLoading}>{isLoading ? 'Checking access...' : 'Continue'} <ArrowRight size={17} /></button>
             </form>
-            <p className="switch-prompt">Need another login? <button type="button" onClick={() => { setIndustryLoginOpen(false); setMode('signin'); setForm((current) => ({ ...current, industryNumber: '' })) }}>Back</button></p>
+            <p className="switch-prompt">Need another login? <button type="button" onClick={() => { setIndustryLoginOpen(false); setMode('signin'); setStatus({ type: '', message: '' }); setForm((current) => ({ ...current, industryNumber: '' })) }}>Back</button></p>
           </section>
         </div>
       </main>
@@ -418,8 +444,14 @@ function App() {
             {mode === 'signin' && (
               <div className="form-meta" style={{ marginTop: 8 }}>
                 <span>Industry access</span>
-                <button type="button" className="forgot-button" onClick={() => { setIndustryLoginOpen(true); setForm((current) => ({ ...current, userType: 'industry', industryNumber: '' })); setStatus({ type: '', message: '' }) }}>Industry Login</button>
+                <button type="button" className="forgot-button" onClick={() => { setIndustryLoginOpen(true); setForm((current) => ({ ...current, userType: 'industry', industryNumber: '', rememberMe: false })); setStatus({ type: '', message: '' }) }}>Industry Login</button>
               </div>
+            )}
+            {mode === 'signin' && (
+              <label className="remember-me-row" style={{ display: 'flex', alignItems: 'center', gap: 10, margin: '10px 0 18px' }}>
+                <input type="checkbox" checked={Boolean(form.rememberMe)} onChange={() => setForm((current) => ({ ...current, rememberMe: !current.rememberMe }))} />
+                <span>Remember me</span>
+              </label>
             )}
             {status.message && <div className={`status-message ${status.type}`} role="alert">{status.message}</div>}
             <button className="submit-button" type="submit" disabled={isLoading}>{isLoading ? 'Working...' : mode === 'signin' ? 'Sign In' : 'Create account'} <ArrowRight size={17} /></button>
