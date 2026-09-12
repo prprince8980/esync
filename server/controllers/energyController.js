@@ -1,4 +1,5 @@
 import EnergyReading from '../models/EnergyReading.js'
+import { awardHouseholdRenewableCoins } from '../services/rewardsService.js'
 
 const DEFAULT_TARIFF = Number(process.env.ENERGY_TARIFF_PER_KWH) || 8
 const GRID_CARBON_FACTOR = Number(process.env.GRID_CARBON_KG_PER_KWH) || 0.7
@@ -26,7 +27,15 @@ export async function recordEnergy(req, res) {
   if (!['esp32', 'inverter', 'ev_charger', 'meter', 'manual'].includes(source) || values.some((value) => numberValue(value) === null)) return res.status(400).json({ success: false, message: 'Provide valid renewable, grid, and load kWh values.' })
   if (renewableKwh + gridKwh > 0 && loadKwh > (renewableKwh + gridKwh) * 1.5) return res.status(400).json({ success: false, message: 'Load value is outside the expected measurement range.' })
   const reading = await EnergyReading.create({ userId: req.user._id, deviceId, source, renewableKwh, gridKwh, loadKwh, cost: numberValue(cost) ?? gridKwh * DEFAULT_TARIFF, carbonKg: gridKwh * GRID_CARBON_FACTOR, recordedAt: recordedAt ? new Date(recordedAt) : new Date() })
-  return res.status(201).json({ success: true, reading: { ...reading.toObject(), metrics: calculateMetrics(reading) } })
+  
+  // Award coins for renewable energy usage
+  const metrics = calculateMetrics(reading)
+  const eventId = `energy-${reading._id}`
+  if (renewableKwh > 0) {
+    await awardHouseholdRenewableCoins(req.user._id, renewableKwh, eventId)
+  }
+  
+  return res.status(201).json({ success: true, reading: { ...reading.toObject(), metrics } })
 }
 
 export async function getEnergyOverview(req, res) {

@@ -1,6 +1,7 @@
 import mongoose from 'mongoose'
 import EvTelemetry from '../models/EvTelemetry.js'
 import EnergyReading from '../models/EnergyReading.js'
+import { awardEvChargingCoins } from '../services/rewardsService.js'
 
 const STALE_AFTER_MS = 15_000
 const TARIFF = Number(process.env.ENERGY_TARIFF_PER_KWH) || 8
@@ -154,6 +155,14 @@ export async function recordEvTelemetry(req, res) {
   const { deviceId, vehicleName, batteryPercent, targetPercent, rangeKm, chargingStatus, powerKw, energyDeliveredKwh, renewableShare, recordedAt } = req.body ?? {}
   if (!deviceId || !validNumber(batteryPercent, 0, 100) || !validNumber(targetPercent, 1, 100) || !validNumber(rangeKm) || !validNumber(powerKw) || !validNumber(energyDeliveredKwh) || !validNumber(renewableShare, 0, 100) || !['charging', 'complete', 'idle'].includes(chargingStatus)) return res.status(400).json({ success: false, message: 'Provide valid EV telemetry values.' })
   const telemetry = await EvTelemetry.create({ userId: req.user._id, deviceId, vehicleName, batteryPercent, targetPercent, rangeKm, chargingStatus, powerKw, energyDeliveredKwh, renewableShare, recordedAt: recordedAt ? new Date(recordedAt) : new Date() })
-  if (chargingStatus === 'charging' || chargingStatus === 'complete') await EnergyReading.create({ userId: req.user._id, deviceId, source: 'ev_charger', renewableKwh: energyDeliveredKwh * renewableShare / 100, gridKwh: energyDeliveredKwh * (1 - renewableShare / 100), loadKwh: energyDeliveredKwh, cost: energyDeliveredKwh * (1 - renewableShare / 100) * TARIFF, carbonKg: energyDeliveredKwh * (1 - renewableShare / 100) * 0.7, recordedAt: telemetry.recordedAt })
+  if (chargingStatus === 'charging' || chargingStatus === 'complete') {
+    await EnergyReading.create({ userId: req.user._id, deviceId, source: 'ev_charger', renewableKwh: energyDeliveredKwh * renewableShare / 100, gridKwh: energyDeliveredKwh * (1 - renewableShare / 100), loadKwh: energyDeliveredKwh, cost: energyDeliveredKwh * (1 - renewableShare / 100) * TARIFF, carbonKg: energyDeliveredKwh * (1 - renewableShare / 100) * 0.7, recordedAt: telemetry.recordedAt })
+    
+    // Award coins for smart charging during renewable windows
+    const eventId = `ev-charging-${telemetry._id}`
+    if (renewableShare >= 50 && energyDeliveredKwh > 0) {
+      await awardEvChargingCoins(req.user._id, energyDeliveredKwh, renewableShare, eventId)
+    }
+  }
   return res.status(201).json({ success: true, telemetry: formatTelemetry(telemetry.toObject()) })
 }

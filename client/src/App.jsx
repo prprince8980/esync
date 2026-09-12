@@ -142,14 +142,14 @@ function App() {
         }
 
         if (response.user.userType === 'industry') {
-          const industryNumber = form.industryNumber?.trim().toUpperCase()
+          const industryNumber = String(form.industryNumber ?? '').trim().toUpperCase()
           if (!industryNumber) {
             setIndustryLoginOpen(true)
             setForm((current) => ({ ...current, industryNumber: response.user.industryNumber || '' }))
             setStatus({ type: 'info', message: 'Enter your registered Industry Number to continue.' })
             return
           }
-          const verified = await loginIndustry({ industryNumber })
+          const verified = await loginIndustry({ industryNumber: String(industryNumber).trim() })
           const finalUser = { ...response.user, industryNumber: verified.industry?.industryNumber || industryNumber }
           setRoleUser(finalUser)
           setIndustryLoginOpen(false)

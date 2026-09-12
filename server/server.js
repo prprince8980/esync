@@ -9,6 +9,7 @@ import profileRoutes from './routes/profileRoutes.js'
 import energyRoutes from './routes/energyRoutes.js'
 import evRoutes from './routes/evRoutes.js'
 import industryRoutes from './routes/industryRoutes.js'
+import rewardsRoutes from './routes/rewardsRoutes.js'
 
 const app = express()
 const port = Number(process.env.PORT) || 5000
@@ -23,6 +24,7 @@ app.use('/api/profile', profileRoutes)
 app.use('/api/energy', energyRoutes)
 app.use('/api/ev', evRoutes)
 app.use('/api/industry', industryRoutes)
+app.use('/api/rewards', rewardsRoutes)
 app.get('/api/health', (_req, res) => res.json({ success: true, message: 'Esync auth API is online.' }))
 app.use((_req, res) => res.status(404).json({ success: false, message: 'Route not found.' }))
 app.use((error, _req, res, _next) => {

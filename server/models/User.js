@@ -71,6 +71,12 @@ const userSchema = new mongoose.Schema(
       type: Number,
       min: -180,
       max: 180
+    },
+    ecoCoins: {
+      type: Number,
+      default: 0,
+      min: 0,
+      index: true
     }
   },
   { timestamps: true }

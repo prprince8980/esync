@@ -1,6 +1,7 @@
 import Industry from '../models/Industry.js'
 import IndustryTelemetry from '../models/IndustryTelemetry.js'
 import User from '../models/User.js'
+import { awardIndustryLoadShiftCoins } from '../services/rewardsService.js'
 
 const TARIFF_PER_KWH = Number(process.env.ENERGY_TARIFF_PER_KWH) || 8
 const GRID_CARBON_FACTOR = Number(process.env.GRID_CARBON_KG_PER_KWH) || 0.7
@@ -115,29 +116,65 @@ export async function createIndustry(req, res) {
 }
 
 export async function loginIndustry(req, res) {
-  const industryNumber = normalizeIndustryNumber(req.body?.industryNumber || req.params?.industryNumber)
+  const rawIndustryNumber = req.body?.industryNumber ?? req.body?.industryId ?? req.params?.industryNumber ?? ''
+  const industryNumber = String(rawIndustryNumber).trim()
+
   if (!industryNumber) {
     return res.status(400).json({ success: false, message: 'Please enter a valid EcoSync Industry Number.' })
   }
 
-  const industry = await Industry.findOne({ industryNumber }).lean()
-  if (!industry) {
-    return res.status(404).json({ success: false, code: 'INDUSTRY_NOT_FOUND', message: '❌ Industry not found. Please enter a valid EcoSync Industry Number.' })
+  try {
+    const industry = await Industry.findOne({ industryNumber }).lean()
+    if (!industry) {
+      return res.status(404).json({ success: false, message: 'Industry not found' })
+    }
+
+    if (req.user && req.user.userType !== 'industry') {
+      return res.status(403).json({ success: false, message: 'This area is available to industry accounts only.' })
+    }
+
+    if (req.user?.industryNumber && req.user.industryNumber !== industryNumber) {
+      return res.status(403).json({ success: false, message: 'You are not authorized to access this industry.' })
+    }
+
+    if (req.user?._id) {
+      const existingUserWithNumber = await User.findOne({ industryNumber, _id: { $ne: req.user._id } }).lean()
+      if (existingUserWithNumber) {
+        return res.status(409).json({
+          success: false,
+          message: `Industry number ${industryNumber} is already linked to another account.`
+        })
+      }
+
+      try {
+        await User.findByIdAndUpdate(req.user._id, { industryNumber }, { new: true })
+        const user = await User.findById(req.user._id).lean()
+        req.user = user
+      } catch (error) {
+        if (error?.code === 11000) {
+          return res.status(409).json({
+            success: false,
+            message: `Industry number ${industryNumber} is already linked to another account.`
+          })
+        }
+        throw error
+      }
+    }
+
+    return res.json({
+      success: true,
+      message: `Welcome to ${industryDisplayName(industry)}.`,
+      industry: {
+        id: industry._id?.toString?.() || industry._id || industry.id || industry.industryId || industryNumber,
+        industryNumber: industry.industryNumber || industryNumber,
+        name: industry.name || industry.industryName || industryDisplayName(industry),
+        location: industry.location || 'Not specified'
+      }
+    })
+  } catch (error) {
+    const message = error?.message || 'Server error while checking industry access.'
+    return res.status(500).json({ success: false, message })
   }
-
-  if (req.user?.userType !== 'industry') {
-    return res.status(403).json({ success: false, message: 'This area is available to industry accounts only.' })
-  }
-
-  if (req.user.industryNumber && req.user.industryNumber !== industryNumber) {
-    return res.status(403).json({ success: false, message: 'You are not authorized to access this industry.' })
-  }
-
-  await User.findByIdAndUpdate(req.user._id, { industryNumber }, { new: true })
-  const user = await User.findById(req.user._id).lean()
-  req.user = user
-
-  return res.json({ success: true, message: `Welcome to ${industryDisplayName(industry)}.`, industry: { id: industry._id.toString(), industryNumber: industry.industryNumber, name: industryDisplayName(industry), location: industry.location } })
 }
 
 export async function getIndustryProfile(req, res) {
@@ -168,23 +205,47 @@ export async function getIndustryDashboard(req, res) {
   const latest = await IndustryTelemetry.findOne({ industryNumber }).sort({ timestamp: -1 }).lean()
   const history = await IndustryTelemetry.find({ industryNumber, timestamp: { $gte: new Date(Date.now() - 24 * 60 * 60 * 1000) } }).sort({ timestamp: 1 }).lean()
 
-  const renewableGeneration = safeNumber(latest?.solarPower, 0) + safeNumber(latest?.windPower, 0)
-  const gridConsumption = safeNumber(latest?.gridPower, 0)
-  const renewableShare = Math.min(100, Math.round((renewableGeneration / Math.max(1, renewableGeneration + gridConsumption)) * 100))
-  const renewableEnergy = history.reduce((sum, item) => sum + safeNumber(item.solarPower, 0) + safeNumber(item.windPower, 0), 0)
-  const gridEnergy = history.reduce((sum, item) => sum + safeNumber(item.gridPower, 0), 0)
-  const totalLoad = safeNumber(latest?.totalLoad, 0)
+  const capacity = industry.capacity || {
+    solarKw: industry.installedSolarCapacity || 500,
+    windKw: industry.installedWindCapacity || 300
+  }
+  const generation = industry.generation || {
+    solarKw: safeNumber(latest?.solarPower, 283),
+    windKw: safeNumber(latest?.windPower, 123)
+  }
+  const demandKw = Number(industry.demandKw ?? latest?.totalLoad ?? 500)
+
+  const solarCapacity = safeNumber(Number(capacity.solarKw), 500)
+  const windCapacity = safeNumber(Number(capacity.windKw), 300)
+  const solarGeneration = safeNumber(Number(generation.solarKw), safeNumber(latest?.solarPower, 283))
+  const windGeneration = safeNumber(Number(generation.windKw), safeNumber(latest?.windPower, 123))
+  const gridConsumption = Math.max(0, Math.round(demandKw - solarGeneration - windGeneration))
+  const renewableGeneration = solarGeneration + windGeneration
+  const renewableShare = demandKw > 0 ? Math.min(100, Math.round((renewableGeneration / Math.max(1, demandKw)) * 100)) : 0
+
+  const renewableEnergy = Math.max(0, solarGeneration + windGeneration)
+  const gridEnergy = Math.max(0, demandKw - renewableGeneration)
   const costSaved = renewableEnergy * TARIFF_PER_KWH * 0.5
   const co2Avoided = renewableEnergy * GRID_CARBON_FACTOR
 
+  const chartPoints = [
+    { label: '06:00', renewable: Math.round(solarGeneration * 0.18 + windGeneration * 0.12) },
+    { label: '08:00', renewable: Math.round(solarGeneration * 0.34 + windGeneration * 0.22) },
+    { label: '10:00', renewable: Math.round(solarGeneration * 0.56 + windGeneration * 0.36) },
+    { label: '12:00', renewable: Math.round(solarGeneration * 0.82 + windGeneration * 0.48) },
+    { label: '14:00', renewable: Math.round(solarGeneration * 0.74 + windGeneration * 0.42) },
+    { label: '16:00', renewable: Math.round(solarGeneration * 0.48 + windGeneration * 0.28) },
+    { label: '18:00', renewable: Math.round(solarGeneration * 0.22 + windGeneration * 0.18) }
+  ]
+
   const dashboard = {
-    industry: { ...industry, industryNumber },
+    industry: { ...industry, industryNumber, capacity, generation, demandKw },
     liveStatus: {
       industry: industryDisplayName(industry),
       industryNumber,
       deviceStatus: latest?.deviceStatus === 'offline' ? 'OFFLINE' : 'ONLINE',
       lastTelemetry: latest?.timestamp || new Date(),
-      currentLoad: totalLoad,
+      currentLoad: demandKw,
       renewableGeneration,
       gridConsumption,
       renewableShare
@@ -198,36 +259,46 @@ export async function getIndustryDashboard(req, res) {
       ecoTokens: Math.round(renewableShare * 1.8 + (costSaved / 100))
     },
     energySources: {
-      solar: safeNumber(latest?.solarPower, 0),
-      wind: safeNumber(latest?.windPower, 0),
-      grid: safeNumber(latest?.gridPower, 0),
+      solar: solarGeneration,
+      wind: windGeneration,
+      grid: gridConsumption,
       other: 0
     },
     solarPerformance: {
-      current: safeNumber(latest?.solarPower, 0),
-      today: Math.round(renewableGeneration * 0.8),
-      peak: Math.max(safeNumber(latest?.solarPower, 0), 480),
+      current: solarGeneration,
+      today: Math.round(solarGeneration * 0.8),
+      peak: Math.max(solarGeneration, 480),
       peakTime: '12:35 PM',
-      utilization: Math.min(100, Math.max(0, Math.round((safeNumber(latest?.solarPower, 0) / Math.max(1, safeNumber(industry.installedSolarCapacity, 500))) * 100)))
+      utilization: Math.min(100, Math.max(0, Math.round((solarGeneration / Math.max(1, solarCapacity)) * 100)))
     },
-    windPerformance: industry.installedWindCapacity > 0 ? {
-      current: safeNumber(latest?.windPower, 0),
-      today: Math.round((safeNumber(latest?.windPower, 0) || 0) * 8),
-      peak: Math.max(safeNumber(latest?.windPower, 0), 180),
+    windPerformance: windCapacity > 0 ? {
+      current: windGeneration,
+      today: Math.round(windGeneration * 8),
+      peak: Math.max(windGeneration, 180),
       availability: 'High',
       availabilityPercent: 78,
       configured: true
     } : { configured: false, availability: 'Not configured', current: 0 },
-    loadBreakdown: buildLoadBreakdown(latest),
-    flexibleLoads: buildFlexibleLoads(latest),
+    loadBreakdown: [
+      { name: 'Production', value: Math.round(demandKw * 0.48), type: 'Core process', share: 48 },
+      { name: 'HVAC', value: Math.round(demandKw * 0.18), type: 'Cooling', share: 18 },
+      { name: 'Pumps', value: Math.round(demandKw * 0.14), type: 'Water & flow', share: 14 },
+      { name: 'Lighting', value: Math.round(demandKw * 0.12), type: 'Facility', share: 12 },
+      { name: 'Other', value: Math.max(0, demandKw - (Math.round(demandKw * 0.48) + Math.round(demandKw * 0.18) + Math.round(demandKw * 0.14) + Math.round(demandKw * 0.12))), type: 'Balance', share: 8 }
+    ],
+    flexibleLoads: [
+      { name: 'Machine A', current: Math.round(demandKw * 0.22), flexible: true, shiftWindow: '12:00 PM - 2:00 PM', potential: 120 },
+      { name: 'Machine B', current: Math.round(demandKw * 0.16), flexible: true, shiftWindow: '11:45 AM - 1:30 PM', potential: 100 },
+      { name: 'Machine C', current: Math.round(demandKw * 0.15), flexible: false, shiftWindow: 'Unable to shift', potential: 0 }
+    ],
     recommendation: buildRecommendation({ renewableShare }),
-    timingChart: buildTimingChart(history),
+    timingChart: chartPoints,
     notifications: [
       { title: 'Solar peak expected in 30 minutes', time: new Date() },
       { title: 'Flexible load opportunity detected', time: new Date() }
     ],
     summary: {
-      score: 87,
+      score: Math.min(100, Math.max(60, renewableShare + 12)),
       status: 'Excellent renewable utilization and reduced grid dependency.',
       annualSavings: Math.round(costSaved * 12),
       annualCo2: Math.round(co2Avoided * 12)
@@ -299,6 +370,15 @@ export async function recordIndustryTelemetry(req, res) {
     deviceStatus: payload.deviceStatus || 'online',
     timestamp: payload.timestamp ? new Date(payload.timestamp) : new Date()
   })
+
+  // Award coins for industry load shifting during high renewable periods
+  if (renewableShare >= 60 && industry.userId && totalLoad > 0) {
+    const eventId = `industry-telemetry-${telemetry._id}`
+    const flexibleLoad = Math.min(totalLoad * 0.5, productionLoad * 0.35)
+    if (flexibleLoad > 10) {
+      await awardIndustryLoadShiftCoins(industry.userId, flexibleLoad, eventId)
+    }
+  }
 
   return res.status(201).json({ success: true, message: 'Industry telemetry recorded.', telemetry: { id: telemetry._id.toString(), industryNumber, solarPower, windPower, gridPower, totalLoad, renewableShare } })
 }

@@ -21,7 +21,8 @@ function publicUser(user) {
     state: user.state || '',
     country: user.country || '',
     latitude: user.latitude ?? null,
-    longitude: user.longitude ?? null
+    longitude: user.longitude ?? null,
+    ecoCoins: user.ecoCoins ?? 0
   }
 }
 
