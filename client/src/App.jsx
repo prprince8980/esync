@@ -346,7 +346,7 @@ function App() {
     )
   }
 
-  if (roleUser) return roleUser.userType === 'ev_owner' ? <EvOwnerDashboard user={roleUser} evVehicle={evVehicle} onLogout={() => { localStorage.removeItem('esync_token'); setRoleUser(null); setEvVehicle(null); setEvNumber(''); setEvLoginOpen(false); setMode('signin'); setForm((current) => ({ ...current, password: '', industryNumber: '' })) }} /> : roleUser.userType === 'industry' ? <IndustryDashboard user={roleUser} onLogout={() => { localStorage.removeItem('esync_token'); setRoleUser(null); setMode('signin'); setForm((current) => ({ ...current, password: '', industryNumber: '' })) }} /> : <RoleDashboard user={roleUser} onLogout={() => { localStorage.removeItem('esync_token'); setRoleUser(null); setMode('signin'); setForm((current) => ({ ...current, password: '', industryNumber: '' })) }} />
+  if (roleUser) return roleUser.userType === 'ev_owner' ? <EvOwnerDashboard user={roleUser} evVehicle={evVehicle} onLogout={() => { localStorage.removeItem('esync_token'); localStorage.removeItem('esync_user'); setRoleUser(null); setEvVehicle(null); setEvNumber(''); setEvLoginOpen(false); setMode('signin'); setForm((current) => ({ ...current, password: '', industryNumber: '' })) }} /> : roleUser.userType === 'industry' ? <IndustryDashboard user={roleUser} onLogout={() => { localStorage.removeItem('esync_token'); localStorage.removeItem('esync_user'); setRoleUser(null); setIndustryLoginOpen(false); setMode('signin'); setStatus({ type: '', message: '' }); setForm((current) => ({ ...current, password: '', industryNumber: '' })) }} /> : <RoleDashboard user={roleUser} onLogout={() => { localStorage.removeItem('esync_token'); localStorage.removeItem('esync_user'); setRoleUser(null); setMode('signin'); setForm((current) => ({ ...current, password: '', industryNumber: '' })) }} />
 
   if (welcomeUser) {
     return (
@@ -387,7 +387,7 @@ function App() {
             <form onSubmit={handleSubmit} noValidate>
               <Field label="Email address" type="email" value={form.email} onChange={updateField('email')} placeholder="you@example.com" autoComplete="email" icon={Mail} />
               <Field label="Password" type={showPassword ? 'text' : 'password'} value={form.password} onChange={updateField('password')} placeholder="Password" autoComplete="current-password" icon={LockKeyhole} action={<button type="button" className="icon-button" onClick={() => setShowPassword((current) => !current)} aria-label={showPassword ? 'Hide password' : 'Show password'}>{showPassword ? <EyeOff size={17} /> : <Eye size={17} />}</button>} />
-              <Field label="Industry Number" value={form.industryNumber} onChange={updateField('industryNumber')} placeholder="IND-1001" autoComplete="off" icon={UserRound} />
+              <Field label="Industry Number" value={form.industryNumber} onChange={updateField('industryNumber')} placeholder="e.g. 8980 or IND-1001" autoComplete="off" icon={UserRound} />
               {status.message && <div className={`status-message ${status.type}`} role="alert">{status.message}</div>}
               <button className="submit-button" type="submit" disabled={isLoading}>{isLoading ? 'Checking access...' : 'Continue'} <ArrowRight size={17} /></button>
             </form>

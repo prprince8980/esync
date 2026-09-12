@@ -7,7 +7,13 @@ const GRID_CARBON_FACTOR = Number(process.env.GRID_CARBON_KG_PER_KWH) || 0.7
 
 function normalizeIndustryNumber(value) {
   const text = typeof value === 'string' ? value.trim().toUpperCase() : ''
-  return text && /^IND-[A-Z0-9-]+$/i.test(text) ? text : null
+  // Existing installations may use either a legacy numeric ID (for example 8980)
+  // or the newer IND- prefixed format.
+  return text && /^[A-Z0-9][A-Z0-9-]{0,39}$/i.test(text) ? text : null
+}
+
+function industryDisplayName(industry) {
+  return industry?.name || industry?.industryName || 'Industry'
 }
 
 function safeNumber(value, fallback = 0) {
@@ -131,7 +137,7 @@ export async function loginIndustry(req, res) {
   const user = await User.findById(req.user._id).lean()
   req.user = user
 
-  return res.json({ success: true, message: `Welcome to ${industry.name}.`, industry: { id: industry._id.toString(), industryNumber: industry.industryNumber, name: industry.name, location: industry.location } })
+  return res.json({ success: true, message: `Welcome to ${industryDisplayName(industry)}.`, industry: { id: industry._id.toString(), industryNumber: industry.industryNumber, name: industryDisplayName(industry), location: industry.location } })
 }
 
 export async function getIndustryProfile(req, res) {
@@ -174,7 +180,7 @@ export async function getIndustryDashboard(req, res) {
   const dashboard = {
     industry: { ...industry, industryNumber },
     liveStatus: {
-      industry: industry.name,
+      industry: industryDisplayName(industry),
       industryNumber,
       deviceStatus: latest?.deviceStatus === 'offline' ? 'OFFLINE' : 'ONLINE',
       lastTelemetry: latest?.timestamp || new Date(),

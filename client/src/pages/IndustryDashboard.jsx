@@ -51,7 +51,7 @@ export default function IndustryDashboard({ user, onLogout }) {
     return (
       <main className="dashboard-shell">
         <div className="dashboard-content">
-          <div className="dashboard-loading">{loading ? 'Loading industry dashboard...' : status || 'No data available yet.'}</div>
+          {loading ? <div className="dashboard-loading">Loading industry dashboard...</div> : <section className="industry-recovery" role="alert"><div className="industry-recovery-icon"><Factory size={24} /></div><p className="eyebrow">Industry access</p><h1>We couldn’t open this dashboard.</h1><p>{status || 'No industry is linked to this account yet.'}</p><p className="industry-recovery-help">You can sign in with a different account, or ask your administrator for the registered Industry Number.</p><div className="industry-recovery-actions"><button className="primary-action" type="button" onClick={onLogout}><ArrowLeft size={16} />Back to sign in</button><button className="subtle-action" type="button" onClick={loadDashboard}><RefreshCw size={15} />Try again</button></div></section>}
         </div>
       </main>
     )

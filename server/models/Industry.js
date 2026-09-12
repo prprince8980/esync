@@ -8,7 +8,7 @@ const industrySchema = new mongoose.Schema(
       unique: true,
       trim: true,
       uppercase: true,
-      match: /^IND-[A-Z0-9-]+$/i
+      match: /^[A-Z0-9][A-Z0-9-]{0,39}$/i
     },
     name: {
       type: String,
