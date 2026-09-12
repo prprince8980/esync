@@ -1,0 +1,27 @@
+import { useEffect, useState } from 'react'
+import { BarChart3, BatteryCharging, Check, Factory, Leaf, LogOut, PlugZap, RefreshCw, Send, TrendingDown, Zap } from 'lucide-react'
+import { getEnergyOverview, recordEnergyReading } from '../services/energyService.js'
+
+const roleCopy = {
+  ev_owner: { label: 'EV energy cockpit', title: 'Charge when the grid is clean.', description: 'Plan charging around renewable supply, cost, traffic, and your departure time.', icon: BatteryCharging },
+  industry: { label: 'Industrial energy command', title: 'Run production with better timing.', description: 'Compare renewable supply with grid demand and protect critical processes while reducing cost.', icon: Factory }
+}
+
+function Metric({ label, value, suffix = '', icon: Icon }) {
+  return <article className="role-metric"><Icon size={17} /><span>{label}</span><strong>{value}{suffix}</strong></article>
+}
+
+export default function RoleDashboard({ user, onLogout }) {
+  const copy = roleCopy[user.userType] || roleCopy.industry
+  const [overview, setOverview] = useState(null)
+  const [form, setForm] = useState({ renewableKwh: '', gridKwh: '', loadKwh: '', source: user.userType === 'ev_owner' ? 'ev_charger' : 'esp32' })
+  const [status, setStatus] = useState('')
+  const [loading, setLoading] = useState(true)
+  const Icon = copy.icon
+  const load = async () => { try { setLoading(true); setOverview(await getEnergyOverview()); setStatus('') } catch (error) { setStatus(error.message) } finally { setLoading(false) } }
+  useEffect(() => { load() }, [])
+  const update = (field) => (event) => setForm((current) => ({ ...current, [field]: event.target.value }))
+  const submit = async (event) => { event.preventDefault(); try { await recordEnergyReading({ ...form, renewableKwh: Number(form.renewableKwh), gridKwh: Number(form.gridKwh), loadKwh: Number(form.loadKwh) }); setForm((current) => ({ ...current, renewableKwh: '', gridKwh: '', loadKwh: '' })); setStatus('Reading recorded. Your report and Eco Tokens were updated.'); await load() } catch (error) { setStatus(error.message) } }
+  const totals = overview?.totals || { renewableKwh: 0, gridKwh: 0, loadKwh: 0, renewableShare: 0, avoidedGridCost: 0, avoidedCarbon: 0, ecoTokens: 0 }
+  return <main className="role-shell"><header className="role-header"><div className="role-brand"><Icon size={21} /><span>Esync / {copy.label}</span></div><div className="role-actions"><span>{user.fullName}</span><button onClick={onLogout}><LogOut size={16} />Log out</button></div></header><div className="role-content"><div className="role-hero"><div><p className="eyebrow">{copy.label}</p><h1>{copy.title}</h1><p>{copy.description}</p></div><div className="role-health"><span className="health-dot" />Live energy profile</div></div>{status && <div className="role-status"><Check size={15} />{status}</div>}<section className="role-metrics"><Metric label="Renewable share" value={totals.renewableShare} suffix="%" icon={Leaf} /><Metric label="Energy used" value={totals.loadKwh} suffix=" kWh" icon={Zap} /><Metric label="Avoided cost" value={`₹${totals.avoidedGridCost}`} icon={TrendingDown} /><Metric label="Eco Tokens" value={totals.ecoTokens} icon={Leaf} /></section><div className="role-grid"><section className="role-card-panel"><div className="panel-heading"><div><p className="eyebrow">Telemetry intake</p><h2>Record an energy reading</h2></div><button className="icon-action role-refresh" onClick={load} aria-label="Refresh report"><RefreshCw size={16} /></button></div><p className="panel-copy">This form uses the same contract an ESP32, inverter, EV charger, or industrial meter can call.</p><form className="reading-form" onSubmit={submit}><label>Data source<select value={form.source} onChange={update('source')}><option value="esp32">ESP32 meter</option><option value="inverter">Solar inverter</option><option value="ev_charger">EV charger</option><option value="meter">Industrial meter</option><option value="manual">Manual entry</option></select></label><label>Renewable kWh<input type="number" min="0" step="0.01" value={form.renewableKwh} onChange={update('renewableKwh')} required /></label><label>Grid kWh<input type="number" min="0" step="0.01" value={form.gridKwh} onChange={update('gridKwh')} required /></label><label>Total load kWh<input type="number" min="0" step="0.01" value={form.loadKwh} onChange={update('loadKwh')} required /></label><button className="role-primary" type="submit"><Send size={15} />Save reading</button></form></section><section className="role-card-panel report-panel"><div className="panel-heading"><div><p className="eyebrow">Last 30 days</p><h2>Energy performance report</h2></div><BarChart3 size={21} /></div><div className="report-bars"><div><span>Renewable</span><strong>{totals.renewableKwh} kWh</strong><i><b style={{ width: `${totals.renewableShare}%` }} /></i></div><div><span>Grid dependency</span><strong>{totals.gridKwh} kWh</strong><i><b className="grid-bar" style={{ width: `${Math.min(100, 100 - totals.renewableShare)}%` }} /></i></div><div><span>Carbon avoided</span><strong>{totals.avoidedCarbon} kg CO₂</strong></div></div><div className="report-callout"><Leaf size={17} /><span>Projected annual savings</span><strong>₹{overview?.report?.projectedAnnualSavings || 0}</strong></div></section></div>{!loading && overview?.readings?.length === 0 && <div className="role-empty">No telemetry yet. Add a reading above or connect your device API to start the report.</div>}</div></main>
+}
