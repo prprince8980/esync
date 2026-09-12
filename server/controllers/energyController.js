@@ -40,6 +40,11 @@ export async function getEnergyOverview(req, res) {
   return res.json({ success: true, totals, readings, report: { periodDays: 30, tariffPerKwh: DEFAULT_TARIFF, gridCarbonFactor: GRID_CARBON_FACTOR, projectedAnnualSavings: Math.round(totals.avoidedGridCost * 12 * 100) / 100 } })
 }
 
+export async function getEnergyHistory(req, res) {
+  const readings = await EnergyReading.find({ userId: req.user._id }).sort({ recordedAt: -1 }).lean()
+  return res.json({ success: true, readings: readings.map((reading) => ({ ...reading, metrics: calculateMetrics(reading) })) })
+}
+
 export async function getEnergyReport(req, res) {
   const overview = await getEnergyOverviewData(req.user._id)
   return res.json({ success: true, report: { ...overview.report, totals: overview.totals, generatedAt: new Date() } })

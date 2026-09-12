@@ -10,6 +10,14 @@ export function getProfile(req, res) {
 }
 
 export async function updateProfile(req, res) {
+  const latitude = Number(req.body?.latitude)
+  const longitude = Number(req.body?.longitude)
+  if (Number.isFinite(latitude) && Number.isFinite(longitude)) {
+    if (latitude < -90 || latitude > 90 || longitude < -180 || longitude > 180) return res.status(400).json({ success: false, message: 'Invalid live location coordinates.' })
+    const updated = await User.findByIdAndUpdate(req.user._id, { latitude, longitude }, { new: true, runValidators: true }).lean()
+    return res.json({ success: true, user: publicProfile(updated), message: 'Live location updated.' })
+  }
+
   const city = typeof req.body?.city === 'string' ? req.body.city.trim() : ''
   const country = typeof req.body?.country === 'string' ? req.body.country.trim() : ''
   if (!city || city.length > 100) return res.status(400).json({ success: false, message: 'Please enter a valid city.' })

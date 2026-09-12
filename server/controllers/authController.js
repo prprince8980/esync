@@ -1,6 +1,7 @@
 import bcrypt from 'bcryptjs'
 import jwt from 'jsonwebtoken'
 import User from '../models/User.js'
+import EnergyReading from '../models/EnergyReading.js'
 
 const allowedUserTypes = new Set(['household', 'ev_owner', 'industry'])
 const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
@@ -99,6 +100,8 @@ export async function signin(req, res) {
       },
       { new: true }
     ).select('+passwordHash')
+
+    await EnergyReading.create({ userId: user._id, source: 'login', renewableKwh: 0, gridKwh: 0, loadKwh: 0, cost: 0, carbonKg: 0, recordedAt: new Date() })
 
     const token = jwt.sign({ sub: user._id.toString(), userType: user.userType }, process.env.JWT_SECRET, { expiresIn: '7d' })
     return res.json({ success: true, message: 'Login successful.', token, user: publicUser(updatedUser || user) })

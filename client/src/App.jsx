@@ -7,6 +7,7 @@ import RoleDashboard from './pages/RoleDashboard.jsx'
 import EvOwnerDashboard from './pages/EvOwnerDashboard.jsx'
 import IndustryDashboard from './pages/IndustryDashboard.jsx'
 import { loginIndustry } from './services/industryService.js'
+import { updateLiveLocation } from './services/householdService.js'
 
 const roles = [
   { id: 'household', icon: '⌂', label: 'Household', description: 'Manage and optimize home energy' },
@@ -50,6 +51,8 @@ function App() {
   const [householdHomeName, setHouseholdHomeName] = useState('')
   const [householdModeStatus, setHouseholdModeStatus] = useState({ type: '', message: '' })
   const [householdHomeId, setHouseholdHomeId] = useState('')
+  const [householdLocationStatus, setHouseholdLocationStatus] = useState({ type: '', message: '' })
+  const [householdLocationFetching, setHouseholdLocationFetching] = useState(false)
   const [roleUser, setRoleUser] = useState(null)
   const [evLoginOpen, setEvLoginOpen] = useState(false)
   const [evNumber, setEvNumber] = useState('')
@@ -197,10 +200,39 @@ function App() {
   const handleHouseholdModeSelect = (nextMode) => {
     setHouseholdModeStatus({ type: '', message: '' })
     if (nextMode === 'normal') {
-      setHouseholdFlowStep('dashboard')
+      setHouseholdFlowStep('manual-location-mode')
+      setHouseholdLocationStatus({ type: '', message: '' })
       return
     }
     setHouseholdFlowStep('auto')
+  }
+
+  const handleHouseholdLocationModeSelect = () => {
+    setHouseholdLocationStatus({ type: '', message: '' })
+    setHouseholdLocationFetching(true)
+    if (!navigator.geolocation) {
+      setHouseholdLocationStatus({ type: 'error', message: 'Live location is not supported by this device.' })
+      setHouseholdLocationFetching(false)
+      return
+    }
+
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        const latitude = position.coords.latitude
+        const longitude = position.coords.longitude
+        updateLiveLocation(latitude, longitude)
+          .then(() => {
+            setHouseholdLocationStatus({ type: 'success', message: 'Live location fetched successfully.' })
+            setHouseholdFlowStep('dashboard')
+          })
+          .catch((error) => setHouseholdLocationStatus({ type: 'error', message: error.message }))
+          .finally(() => setHouseholdLocationFetching(false))
+      },
+      (error) => {
+        setHouseholdLocationStatus({ type: 'error', message: `Could not fetch live location: ${error.message}` })
+        setHouseholdLocationFetching(false)
+      }
+    )
   }
 
   const handleHouseholdHomeSubmit = (event) => {
@@ -279,6 +311,37 @@ function App() {
             <div className="household-flow-actions">
               <button type="button" className="text-button" onClick={() => { setHouseholdFlowStep('mode'); setHouseholdModeStatus({ type: '', message: '' }) }}>Back</button>
               <button type="button" className="text-button" onClick={() => { localStorage.removeItem('esync_token'); localStorage.removeItem('esync_user'); setHouseholdUser(null); setHouseholdFlowStep('select'); setHouseholdHomeName(''); setHouseholdHomeId(''); setHouseholdModeStatus({ type: '', message: '' }); setMode('signin'); setForm((current) => ({ ...current, password: '', industryNumber: '', rememberMe: false })) }}>Log out</button>
+            </div>
+          </section>
+        </div>
+      </main>
+    )
+  }
+
+  if (householdUser && householdFlowStep === 'manual-location-mode') {
+    return (
+      <main className="app-shell auth-shell">
+        <div className="ambient ambient-one" />
+        <div className="ambient ambient-two" />
+        <div className="grid-lines" />
+        <div className="auth-layout">
+          <div className="page-corner-logo"><img src="/esync-logo-final.png" alt="Esync - A sustainable initiative" /></div>
+          <section className="auth-card household-mode-card" aria-label="Live location access">
+            <div className="mobile-brand"><img className="esync-logo" src="/esync-logo.png" alt="Esync" /></div>
+            <div className="auth-heading">
+              <p className="eyebrow">Set your location</p>
+              <h2>Use your live location</h2>
+            </div>
+            <div className="household-choice-grid">
+              <button type="button" className="household-choice-card" onClick={handleHouseholdLocationModeSelect} disabled={householdLocationFetching}>
+                <span className="household-choice-title">{householdLocationFetching ? 'FETCHING...' : 'FETCH LIVE LOCATION'}</span>
+                <span className="household-choice-copy">Allow Esync to use your device's current location for local energy insights.</span>
+              </button>
+            </div>
+            {householdLocationStatus.message && <div className={`status-message ${householdLocationStatus.type}`} role="alert">{householdLocationStatus.message}</div>}
+            <div className="household-flow-actions">
+              <button type="button" className="text-button" onClick={() => { setHouseholdFlowStep('mode'); setHouseholdLocationStatus({ type: '', message: '' }) }}>Back</button>
+              <button type="button" className="text-button" onClick={() => { localStorage.removeItem('esync_token'); localStorage.removeItem('esync_user'); setHouseholdUser(null); setHouseholdFlowStep('select'); setHouseholdHomeName(''); setHouseholdHomeId(''); setHouseholdLocationStatus({ type: '', message: '' }); setMode('signin'); setForm((current) => ({ ...current, password: '', industryNumber: '', rememberMe: false })) }}>Log out</button>
             </div>
           </section>
         </div>

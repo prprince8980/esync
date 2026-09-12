@@ -16,5 +16,6 @@ async function request(path, options = {}) {
 }
 
 export const getEnergyOverview = () => request('overview')
+export const getEnergyHistory = () => request('history')
 export const getEnergyReport = () => request('report')
 export const recordEnergyReading = (payload) => request('readings', { method: 'POST', body: JSON.stringify(payload) })

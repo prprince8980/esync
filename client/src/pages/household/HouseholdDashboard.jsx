@@ -1,6 +1,8 @@
-import { useEffect, useState } from 'react'
-import { ArrowLeft, Bell, Check, ChevronRight, CircleHelp, Cloud, Clock3, Droplets, Gauge, Home, LogOut, Menu, Medal, Sparkles, Target, Trash2, Trophy, UserRound, Wind, X, Zap } from 'lucide-react'
+import { useEffect, useRef, useState } from 'react'
+import { Activity, AirVent, ArrowLeft, BarChart3, Bell, BatteryCharging, Building2, CarFront, Check, ChevronRight, CircleHelp, Cloud, Clock3, Cog, Droplets, Factory, Gauge, Home, LogOut, MapPin, Menu, Medal, RefreshCw, Save, Sparkles, Sun, Target, Trash2, Trophy, UserRound, WashingMachine, Wind, X, Zap } from 'lucide-react'
 import { deleteNotification, getDashboard, getNotifications, getProfile, markAllNotificationsRead, markNotificationRead, updateProfile } from '../../services/householdService.js'
+import { getEnergyHistory } from '../../services/energyService.js'
+import HelpSupportView from '../HelpSupportView.jsx'
 
 const formatTime = (value) => value ? new Intl.DateTimeFormat(undefined, { hour: 'numeric', minute: '2-digit' }).format(new Date(value)) : '--'
 const formatWindow = (start, end) => start && end ? `${formatTime(start)} – ${formatTime(end)}` : 'Next daylight window'
@@ -20,8 +22,138 @@ function ProfileView({ profile, onSaved }) {
   const [city, setCity] = useState(profile.city || '')
   const [country, setCountry] = useState(profile.country || '')
   const [message, setMessage] = useState('')
-  const save = async (event) => { event.preventDefault(); try { const response = await updateProfile({ city, country }); onSaved(response.user); setMessage(response.message) } catch (error) { setMessage(error.message) } }
-  return <section className="profile-view"><p className="eyebrow">Your account</p><h2>My Profile</h2><p className="view-intro">Keep your household location current so Esync can read the right sky.</p><div className="profile-grid"><div className="profile-summary"><div className="profile-avatar"><UserRound size={25} /></div><h3>{profile.fullName}</h3><p>{profile.email}</p><span className="profile-tag">🏠 Household</span><dl className="coordinates"><dt>Saved location</dt><dd>{profile.city || 'Not set'}{profile.state ? `, ${profile.state}` : ''}{profile.country ? `, ${profile.country}` : ''}</dd><dt>Coordinates</dt><dd>{profile.latitude !== null && profile.latitude !== undefined ? `${profile.latitude.toFixed(4)}, ${profile.longitude.toFixed(4)}` : 'Added after saving location'}</dd></dl></div><form onSubmit={save} className="profile-form"><label>City<input value={city} onChange={(event) => setCity(event.target.value)} placeholder="Ahmedabad" required /></label><label>Country <span>(optional)</span><input value={country} onChange={(event) => setCountry(event.target.value)} placeholder="India" /></label>{message && <p className="profile-message">{message}</p>}<button className="primary-action" type="submit">Save location <ChevronRight size={16} /></button></form></div></section>
+  const [saving, setSaving] = useState(false)
+  const save = async (event) => {
+    event.preventDefault()
+    setSaving(true)
+    setMessage('')
+    try {
+      const response = await updateProfile({ city, country })
+      setMessage(response.message)
+      onSaved(response.user)
+    } catch (error) {
+      setMessage(error.message)
+    } finally {
+      setSaving(false)
+    }
+  }
+  const savedLocation = [profile.city, profile.state, profile.country].filter(Boolean).join(', ')
+  const coordinates = profile.latitude !== null && profile.latitude !== undefined ? `${profile.latitude.toFixed(4)}, ${profile.longitude.toFixed(4)}` : 'Added after saving location'
+  return <section className="profile-view"><div className="profile-heading"><div><p className="eyebrow">Your account</p><h2>My Profile</h2><p className="view-intro">Keep your household location current so Esync can read the right sky.</p></div><div className="profile-status"><span /><strong>Profile active</strong></div></div><div className="profile-grid"><div className="profile-summary"><div className="profile-avatar"><UserRound size={25} /></div><h3>{profile.fullName}</h3><p>{profile.email}</p><span className="profile-tag"><Home size={14} /> Household</span><div className="profile-location-card"><MapPin size={18} /><div><span>Saved location</span><strong>{savedLocation || 'Not set'}</strong></div></div><dl className="coordinates"><dt>Coordinates</dt><dd>{coordinates}</dd></dl></div><form onSubmit={save} className="profile-form"><div className="profile-form-heading"><div><span className="card-label">Location settings</span><h3>Update your energy region</h3></div><MapPin size={20} /></div><label htmlFor="profile-city">City<input id="profile-city" value={city} onChange={(event) => setCity(event.target.value)} placeholder="Ahmedabad" required /></label><label htmlFor="profile-country">Country <span>(optional)</span><input id="profile-country" value={country} onChange={(event) => setCountry(event.target.value)} placeholder="India" /></label>{message && <p className="profile-message" role="status">{message}</p>}<button className="primary-action" type="submit" disabled={saving}><Save size={16} />{saving ? 'Saving location...' : 'Save location'}<ChevronRight size={16} /></button></form></div></section>
+}
+
+const readingSourceLabels = { esp32: 'ESP32 meter', inverter: 'Solar inverter', ev_charger: 'EV charger', meter: 'Industrial meter', manual: 'Manual entry' }
+const formatReadingTime = (value) => value ? new Intl.DateTimeFormat(undefined, { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(value)) : 'Unknown time'
+
+function EnergyHistoryView({ profile }) {
+  const [overview, setOverview] = useState(null)
+  const [loading, setLoading] = useState(true)
+  const [refreshing, setRefreshing] = useState(false)
+  const [error, setError] = useState('')
+  const load = async (background = false) => {
+    try {
+      if (background) setRefreshing(true)
+      else setLoading(true)
+      setError('')
+      setOverview(await getEnergyHistory())
+    } catch (loadError) {
+      setError(loadError.message)
+    } finally {
+      setLoading(false)
+      setRefreshing(false)
+    }
+  }
+  useEffect(() => {
+    load()
+    const refreshTimer = window.setInterval(() => load(true), 15000)
+    return () => window.clearInterval(refreshTimer)
+  }, [])
+
+  const readings = overview?.readings || []
+  return <section className="energy-history-view"><div className="history-heading"><div><p className="eyebrow">Energy activity</p><h1>Energy history</h1><p>Every reading from your connected devices and manual actions, kept in one clear timeline.</p></div><button className="history-refresh" type="button" onClick={() => load(true)} disabled={refreshing} aria-label="Refresh energy history"><RefreshCw size={17} className={refreshing ? 'spinning' : ''} /><span>{refreshing ? 'Refreshing' : 'Refresh'}</span></button></div>{error && <div className="history-error" role="alert">{error}<button type="button" onClick={() => load()}>Try again</button></div>}{loading ? <div className="history-empty"><Activity size={28} /><strong>Loading energy activity...</strong><span>Checking the latest records.</span></div> : readings.length === 0 ? <div className="history-empty"><Activity size={28} /><strong>No energy readings yet</strong><span>New device or manual readings will appear here automatically.</span></div> : <div className="history-list">{readings.map((reading) => <article className="history-card" key={reading._id}><div className="history-card-top"><div className="history-source"><span className="history-source-icon"><Zap size={17} /></span><div><strong>{readingSourceLabels[reading.source] || 'Energy reading'}</strong><span>{reading.deviceId || 'User action'}</span></div></div><time>{formatReadingTime(reading.recordedAt)}</time></div><div className="history-card-user"><UserRound size={15} /><span>{profile.fullName}</span><b>{reading.source === 'manual' ? 'Recorded manually' : 'Device reported'}</b></div><div className="history-metrics"><div><span>Renewable</span><strong>{Number(reading.renewableKwh || 0).toFixed(2)} <small>kWh</small></strong></div><div><span>Grid</span><strong>{Number(reading.gridKwh || 0).toFixed(2)} <small>kWh</small></strong></div><div><span>Total load</span><strong>{Number(reading.loadKwh || 0).toFixed(2)} <small>kWh</small></strong></div><div><span>Cost</span><strong>₹{Number(reading.cost || 0).toFixed(2)}</strong></div></div></article>)}</div>}</section>
+}
+
+function SavingsView() {
+  const viewRef = useRef(null)
+  const playMotion = () => {
+    const root = viewRef.current
+    if (!root) return []
+    const animations = []
+    const animate = (selector, keyframes, options) => { const element = root.querySelector(selector); if (element) animations.push(element.animate(keyframes, { fill: 'both', easing: 'cubic-bezier(.22,1,.36,1)', ...options })) }
+    animate('.tutorial-sun', [{ transform: 'translateY(32px) scale(.72)', opacity: .25 }, { transform: 'translateY(0) scale(1)', opacity: 1 }], { duration: 2500, delay: 200 })
+    animate('.tutorial-rays', [{ opacity: 0, transform: 'scale(.75)' }, { opacity: .55, transform: 'scale(1)' }], { duration: 1800, delay: 1100 })
+    animate('.tutorial-house', [{ transform: 'translateY(10px)', opacity: .55 }, { transform: 'translateY(0)', opacity: 1 }], { duration: 1600, delay: 1500 })
+    root.querySelectorAll('.tutorial-appliance').forEach((element, index) => animations.push(element.animate([{ transform: 'translateX(0)', opacity: .45 }, { transform: 'translateX(22px)', opacity: 1 }], { duration: 1800, delay: 1900 + index * 260, easing: 'cubic-bezier(.22,1,.36,1)', fill: 'both' })))
+    animate('.tutorial-energy-window', [{ transform: 'scaleX(.15)', opacity: .35 }, { transform: 'scaleX(1)', opacity: 1 }], { duration: 2200, delay: 2100 })
+    animate('.tutorial-demand-line', [{ strokeDashoffset: 390 }, { strokeDashoffset: 0 }], { duration: 2600, delay: 1800, easing: 'cubic-bezier(.22,1,.36,1)' })
+    animate('.tutorial-result', [{ opacity: 0, transform: 'translateY(8px)' }, { opacity: 1, transform: 'translateY(0)' }], { duration: 1100, delay: 5550 })
+    return animations
+  }
+  useEffect(() => { let animations = playMotion(); const timer = window.setInterval(() => { animations.forEach((animation) => animation.cancel()); animations = playMotion() }, 7600); return () => { window.clearInterval(timer); animations.forEach((animation) => animation.cancel()) } }, [])
+  return <section className="savings-grid-shell"><div className="savings-grid-heading"><div><p className="eyebrow">Energy in motion</p><h1>Smarter energy,<br /><em>shared by everyone.</em></h1><p>See how every layer of the energy system works together to reduce peaks, use cleaner power, and keep demand resilient.</p></div></div><div className="savings-grid"><div className="savings-grid-household"><section className="energy-tutorial-scene" ref={viewRef} aria-label="Household energy optimization animation"><div className="tutorial-card"><div className="tutorial-card-header"><div className="tutorial-household-icon"><Home size={21} /></div><span>HOUSEHOLD USER</span></div><div className="tutorial-sky"><div className="tutorial-sun"><Sun size={48} /></div><div className="tutorial-rays" /><div className="tutorial-house"><Home size={92} /></div><div className="tutorial-appliance tutorial-washer"><WashingMachine size={24} /></div><div className="tutorial-appliance tutorial-dishwasher"><Activity size={24} /></div><div className="tutorial-appliance tutorial-ac"><AirVent size={24} /></div></div><div className="tutorial-timeline"><span>HIGH DEMAND</span><div className="tutorial-timeline-track"><i className="tutorial-energy-window" /><b /></div><span>SOLAR WINDOW</span></div><div className="tutorial-result"><strong>24% less peak draw</strong></div><button className="tutorial-replay" type="button" onClick={playMotion} aria-label="Replay household energy animation"><RefreshCw size={16} /></button></div></section></div><EvChargingAnimation /><IndustrialEnergyAnimation /><GridStabilizationAnimation /></div><footer className="savings-page-footer"><span>Esync energy intelligence</span><strong>Better timing. Cleaner power. Stronger networks.</strong></footer></section>
+}
+
+function SavingsGridCard({ icon: Icon, label, title, copy, metric, tone }) { return <article className={`savings-grid-card ${tone}`}><div className="savings-grid-card-top"><div className="savings-grid-icon"><Icon size={22} /></div><span>{label}</span></div><h2>{title}</h2><p>{copy}</p><div className="savings-grid-flow"><span /><b /></div><strong>{metric}</strong></article> }
+
+function EvChargingAnimation() {
+  const sceneRef = useRef(null)
+  const play = () => {
+    const root = sceneRef.current
+    if (!root) return []
+    const animations = []
+    const animate = (selector, keyframes, options) => { const element = root.querySelector(selector); if (element) animations.push(element.animate(keyframes, { fill: 'both', easing: 'cubic-bezier(.22,1,.36,1)', ...options })) }
+    animate('.ev-tutorial-sun', [{ transform: 'translate(-34px, 25px) scale(.75)', opacity: .3 }, { transform: 'translate(0, 0) scale(1)', opacity: 1 }], { duration: 2300, delay: 150 })
+    animate('.ev-tutorial-rays', [{ opacity: 0, transform: 'scale(.7)' }, { opacity: .52, transform: 'scale(1)' }], { duration: 1800, delay: 950 })
+    animate('.ev-tutorial-panel', [{ transform: 'translateY(12px)', opacity: .5 }, { transform: 'translateY(0)', opacity: 1 }], { duration: 1500, delay: 1350 })
+    animate('.ev-tutorial-charger', [{ opacity: .4, transform: 'scale(.9)' }, { opacity: 1, transform: 'scale(1)' }], { duration: 1200, delay: 2750 })
+    animate('.ev-tutorial-car', [{ transform: 'translateX(-18px)', opacity: .45 }, { transform: 'translateX(0)', opacity: 1 }], { duration: 1600, delay: 3300 })
+    animate('.ev-battery-fill', [{ transform: 'scaleX(.08)' }, { transform: 'scaleX(1)' }], { duration: 2600, delay: 3650 })
+    root.querySelectorAll('.ev-energy-particle').forEach((element, index) => animations.push(element.animate([{ transform: 'translate(0, 0)', opacity: 0 }, { transform: 'translate(35px, 24px)', opacity: 1 }, { transform: 'translate(145px, 45px)', opacity: 1 }, { transform: 'translate(255px, 35px)', opacity: 0 }], { duration: 3000, delay: 1800 + index * 240, easing: 'ease-in-out', fill: 'both' })))
+    animate('.ev-tutorial-result', [{ opacity: 0, transform: 'translateY(8px)' }, { opacity: 1, transform: 'translateY(0)' }], { duration: 1000, delay: 5700 })
+    return animations
+  }
+  useEffect(() => { let animations = play(); const timer = window.setInterval(() => { animations.forEach((animation) => animation.cancel()); animations = play() }, 7600); return () => { window.clearInterval(timer); animations.forEach((animation) => animation.cancel()) } }, [])
+  return <section className="ev-tutorial-scene" ref={sceneRef} aria-label="Electric vehicle solar charging animation"><div className="ev-tutorial-card"><div className="ev-tutorial-header"><div className="ev-tutorial-icon"><BatteryCharging size={21} /></div><span>EV OWNER</span></div><div className="ev-tutorial-sky"><div className="ev-tutorial-sun"><Sun size={43} /></div><div className="ev-tutorial-rays" /><div className="ev-tutorial-panel"><span /><span /><span /><span /></div><div className="ev-energy-route"><i className="ev-energy-particle" /><i className="ev-energy-particle" /><i className="ev-energy-particle" /><i className="ev-energy-particle" /></div><div className="ev-tutorial-charger"><Zap size={24} /></div><div className="ev-tutorial-car"><CarFront size={70} /></div></div><div className="ev-battery"><BatteryCharging size={18} /><div><span className="ev-battery-track"><i className="ev-battery-fill" /></span></div></div><div className="ev-tutorial-result"><strong>18% cleaner charge</strong></div><button className="tutorial-replay" type="button" onClick={play} aria-label="Replay EV solar charging animation"><RefreshCw size={16} /></button></div></section>
+}
+
+function IndustrialEnergyAnimation() {
+  const sceneRef = useRef(null)
+  const play = () => {
+    const root = sceneRef.current
+    if (!root) return []
+    const animations = []
+    const animate = (selector, keyframes, options) => { const element = root.querySelector(selector); if (element) animations.push(element.animate(keyframes, { fill: 'both', easing: 'cubic-bezier(.22,1,.36,1)', ...options })) }
+    animate('.industrial-factory', [{ transform: 'translateY(10px)', opacity: .55 }, { transform: 'translateY(0)', opacity: 1 }], { duration: 1500, delay: 350 })
+    root.querySelectorAll('.industrial-machine').forEach((element, index) => animations.push(element.animate([{ opacity: .32, transform: 'scale(.86)' }, { opacity: 1, transform: 'scale(1)' }, { opacity: .5, transform: 'scale(.94)' }, { opacity: 1, transform: 'scale(1)' }], { duration: 1700, delay: 1000 + index * 470, easing: 'ease-in-out', fill: 'both' })))
+    root.querySelectorAll('.industrial-particle').forEach((element, index) => animations.push(element.animate([{ transform: 'translate(0, 0)', opacity: 0 }, { transform: 'translate(45px, -10px)', opacity: 1 }, { transform: 'translate(115px, 16px)', opacity: 1 }, { transform: 'translate(190px, 0)', opacity: 0 }], { duration: 2600, delay: 1450 + index * 210, easing: 'ease-in-out', fill: 'both' })))
+    animate('.industrial-bar-high', [{ transform: 'scaleY(.95)' }, { transform: 'scaleY(.48)' }], { duration: 2400, delay: 1700 })
+    animate('.industrial-bar-mid', [{ transform: 'scaleY(.35)' }, { transform: 'scaleY(.68)' }], { duration: 2400, delay: 2100 })
+    animate('.industrial-bar-low', [{ transform: 'scaleY(.2)' }, { transform: 'scaleY(.56)' }], { duration: 2400, delay: 2500 })
+    animate('.industrial-result', [{ opacity: 0, transform: 'translateY(8px)' }, { opacity: 1, transform: 'translateY(0)' }], { duration: 1000, delay: 5700 })
+    return animations
+  }
+  useEffect(() => { let animations = play(); const timer = window.setInterval(() => { animations.forEach((animation) => animation.cancel()); animations = play() }, 7600); return () => { window.clearInterval(timer); animations.forEach((animation) => animation.cancel()) } }, [])
+  return <section className="industrial-tutorial-scene" ref={sceneRef} aria-label="Industrial energy management animation"><div className="industrial-tutorial-card"><div className="industrial-tutorial-header"><div className="industrial-tutorial-icon"><Building2 size={21} /></div><span>INDUSTRIAL OWNER</span></div><div className="industrial-stage"><div className="industrial-factory"><Building2 size={83} /></div><div className="industrial-machine industrial-machine-one"><Cog size={25} /></div><div className="industrial-machine industrial-machine-two"><Cog size={21} /></div><div className="industrial-machine industrial-machine-three"><Cog size={18} /></div><div className="industrial-energy-route"><i className="industrial-particle" /><i className="industrial-particle" /><i className="industrial-particle" /><i className="industrial-particle" /></div></div><div className="industrial-load-bars"><BarChart3 size={18} /><span className="industrial-bar industrial-bar-high" /><span className="industrial-bar industrial-bar-mid" /><span className="industrial-bar industrial-bar-low" /></div><div className="industrial-result"><strong>31% load optimized</strong></div><button className="tutorial-replay" type="button" onClick={play} aria-label="Replay industrial energy animation"><RefreshCw size={16} /></button></div></section>
+}
+
+function GridStabilizationAnimation() {
+  const sceneRef = useRef(null)
+  const play = () => {
+    const root = sceneRef.current
+    if (!root) return []
+    const animations = []
+    const animate = (selector, keyframes, options) => { const element = root.querySelector(selector); if (element) animations.push(element.animate(keyframes, { fill: 'both', easing: 'cubic-bezier(.22,1,.36,1)', ...options })) }
+    animate('.grid-sun', [{ opacity: .25, transform: 'translateY(18px) scale(.72)' }, { opacity: 1, transform: 'translateY(0) scale(1)' }], { duration: 2100, delay: 200 })
+    animate('.grid-wind', [{ opacity: .35, transform: 'translateY(10px)' }, { opacity: 1, transform: 'translateY(0)' }], { duration: 1500, delay: 650 })
+    animate('.grid-nodes', [{ opacity: 0, transform: 'scale(.8)' }, { opacity: 1, transform: 'scale(1)' }], { duration: 1500, delay: 1200 })
+    root.querySelectorAll('.grid-particle').forEach((element, index) => animations.push(element.animate([{ transform: 'translate(0, 0)', opacity: 0 }, { transform: 'translate(100px, 20px)', opacity: 1 }, { transform: 'translate(220px, 0)', opacity: 0 }], { duration: 2600, delay: 1450 + index * 230, easing: 'ease-in-out', fill: 'both' })))
+    animate('.grid-supply-wave', [{ strokeDashoffset: 310 }, { strokeDashoffset: 0 }], { duration: 2800, delay: 1700 })
+    animate('.grid-demand-wave', [{ strokeDashoffset: 310, opacity: .55 }, { strokeDashoffset: 0, opacity: 1 }], { duration: 2800, delay: 2300 })
+    animate('.grid-result', [{ opacity: 0, transform: 'translateY(8px)' }, { opacity: 1, transform: 'translateY(0)' }], { duration: 1000, delay: 5700 })
+    return animations
+  }
+  useEffect(() => { let animations = play(); const timer = window.setInterval(() => { animations.forEach((animation) => animation.cancel()); animations = play() }, 7600); return () => { window.clearInterval(timer); animations.forEach((animation) => animation.cancel()) } }, [])
+  return <section className="grid-tutorial-scene" ref={sceneRef} aria-label="Smart electricity grid stabilization animation"><div className="grid-tutorial-card"><div className="grid-tutorial-header"><div className="grid-tutorial-icon"><Zap size={21} /></div><span>ELECTRICITY SUPPLIER</span></div><div className="grid-stage"><div className="grid-sun"><Sun size={34} /></div><div className="grid-panel"><span /><span /><span /><span /></div><div className="grid-wind"><Wind size={38} /></div><div className="grid-lines"><i /><i /><i /></div><div className="grid-nodes"><b /><b /><b /><b /></div><div className="grid-particle-route"><i className="grid-particle" /><i className="grid-particle" /><i className="grid-particle" /><i className="grid-particle" /></div></div><svg className="grid-wave-chart" viewBox="0 0 520 92" preserveAspectRatio="none" aria-hidden="true"><path className="grid-supply-wave" d="M4 24 C58 3, 91 48, 140 23 S220 5, 270 38 S350 67, 410 32 S470 8, 516 27" /><path className="grid-demand-wave" d="M4 64 C58 75, 94 35, 140 60 S220 78, 270 48 S350 19, 410 54 S470 71, 516 57" /></svg><div className="grid-result"><strong>12% smoother demand</strong></div><button className="tutorial-replay" type="button" onClick={play} aria-label="Replay grid stabilization animation"><RefreshCw size={16} /></button></div></section>
 }
 
 function HourlyForecast({ weather, recommendation }) {
@@ -95,5 +227,5 @@ export default function HouseholdDashboard({ user, onLogout }) {
   const markRead = async (id) => { await markNotificationRead(id); setNotifications((items) => items.map((item) => item._id === id ? { ...item, isRead: true } : item)) }
   const markAll = async () => { await markAllNotificationsRead(); setNotifications((items) => items.map((item) => ({ ...item, isRead: true }))) }
   const remove = async (id) => { await deleteNotification(id); setNotifications((items) => items.filter((item) => item._id !== id)) }
-  return <main className="dashboard-shell"><header className="dashboard-header"><div className="dashboard-corner-logo"><img src="/esync-logo-final.png" alt="Esync - A sustainable initiative" /></div><button className="menu-button" onClick={() => setDrawerOpen(true)} aria-label="Open menu"><Menu size={20} /><span>MENU</span></button><div className="header-actions"><span className="header-greeting">{profile.fullName}</span><button className="notification-button" onClick={() => setNotificationsOpen((open) => !open)} aria-label="Open notifications"><Bell size={19} />{unreadCount > 0 && <span>{unreadCount}</span>}</button><button className="avatar-button" onClick={() => navigate('profile')} aria-label="Open profile"><UserRound size={17} /></button></div>{notificationsOpen && <NotificationPanel notifications={notifications} onRead={markRead} onReadAll={markAll} onDelete={remove} onClose={() => setNotificationsOpen(false)} />}</header>{drawerOpen && <Drawer active={active} onNavigate={navigate} onLogout={logout} onClose={() => setDrawerOpen(false)} />}<div className="dashboard-content">{error && <div className="dashboard-error">Weather data is unavailable right now.<button onClick={load}>Try again</button></div>}{active === 'profile' ? <ProfileView profile={profile} onSaved={(nextProfile) => { setProfile(nextProfile); setActive('dashboard'); load() }} /> : active === 'dashboard' ? <DashboardHome data={data} onLocation={() => navigate('profile')} /> : active === 'solar' ? <SolarOpportunityView data={data} onBack={() => navigate('dashboard')} /> : active === 'suggestions' ? <EnergySuggestionsView data={data} onBack={() => navigate('dashboard')} /> : <section className="empty-view"><Sparkles size={30} /><p className="eyebrow">Coming into focus</p><h2>{active === 'notifications' ? 'Your signal feed' : active === 'history' ? 'Energy history' : active === 'savings' ? 'Savings' : 'Help'}</h2><p>More insights will appear here as Esync grows.</p></section>}</div></main>
+  return <main className="dashboard-shell"><header className="dashboard-header"><div className="dashboard-corner-logo"><img src="/esync-logo-final.png" alt="Esync - A sustainable initiative" /></div><button className="menu-button" onClick={() => setDrawerOpen(true)} aria-label="Open menu"><Menu size={20} /><span>MENU</span></button><div className="header-actions"><span className="header-greeting">{profile.fullName}</span><button className="notification-button" onClick={() => setNotificationsOpen((open) => !open)} aria-label="Open notifications"><Bell size={19} />{unreadCount > 0 && <span>{unreadCount}</span>}</button><button className="avatar-button" onClick={() => navigate('profile')} aria-label="Open profile"><UserRound size={17} /></button></div>{notificationsOpen && <NotificationPanel notifications={notifications} onRead={markRead} onReadAll={markAll} onDelete={remove} onClose={() => setNotificationsOpen(false)} />}</header>{drawerOpen && <Drawer active={active} onNavigate={navigate} onLogout={logout} onClose={() => setDrawerOpen(false)} />}<div className="dashboard-content">{error && <div className="dashboard-error">Weather data is unavailable right now.<button onClick={load}>Try again</button></div>}{active === 'profile' ? <ProfileView profile={profile} onSaved={(nextProfile) => { setProfile(nextProfile); setActive('dashboard'); load() }} /> : active === 'dashboard' ? <DashboardHome data={data} onLocation={() => navigate('profile')} /> : active === 'solar' ? <SolarOpportunityView data={data} onBack={() => navigate('dashboard')} /> : active === 'suggestions' ? <EnergySuggestionsView data={data} onBack={() => navigate('dashboard')} /> : active === 'history' ? <EnergyHistoryView profile={profile} /> : active === 'savings' ? <SavingsView /> : active === 'help' ? <HelpSupportView user={profile} /> : <section className="empty-view"><Sparkles size={30} /><p className="eyebrow">Coming into focus</p><h2>{active === 'notifications' ? 'Your signal feed' : 'Help'}</h2><p>More insights will appear here as Esync grows.</p></section>}</div></main>
 }

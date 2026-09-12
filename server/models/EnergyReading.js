@@ -3,7 +3,7 @@ import mongoose from 'mongoose'
 const energyReadingSchema = new mongoose.Schema({
   userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true, index: true },
   deviceId: { type: String, trim: true, maxlength: 120 },
-  source: { type: String, enum: ['esp32', 'inverter', 'ev_charger', 'meter', 'manual'], default: 'manual' },
+  source: { type: String, enum: ['esp32', 'inverter', 'ev_charger', 'meter', 'manual', 'login'], default: 'manual' },
   renewableKwh: { type: Number, min: 0, required: true },
   gridKwh: { type: Number, min: 0, required: true },
   loadKwh: { type: Number, min: 0, required: true },

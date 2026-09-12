@@ -22,3 +22,4 @@ export const markAllNotificationsRead = () => request('notifications/read-all', 
 export const deleteNotification = (id) => request(`notifications/${id}`, { method: 'DELETE' })
 export const getProfile = () => request('profile')
 export const updateProfile = (payload) => request('profile', { method: 'PATCH', body: JSON.stringify(payload) })
+export const updateLiveLocation = (latitude, longitude) => updateProfile({ latitude, longitude })
