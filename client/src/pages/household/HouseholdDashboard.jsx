@@ -1,8 +1,15 @@
+<<<<<<< HEAD
 import { useEffect, useRef, useState } from 'react'
 import { Activity, AirVent, ArrowLeft, BarChart3, Bell, BatteryCharging, Building2, CarFront, Check, ChevronRight, CircleHelp, Cloud, Clock3, Cog, Droplets, Factory, Gauge, Home, LogOut, MapPin, Menu, Medal, RefreshCw, Save, Sparkles, Sun, Target, Trash2, Trophy, UserRound, WashingMachine, Wind, X, Zap } from 'lucide-react'
+=======
+import { useEffect, useState } from 'react'
+import { ArrowLeft, Bell, Check, ChevronRight, CircleHelp, Cloud, Clock3, Droplets, Gauge, Home, LogOut, Menu, Medal, Sparkles, Target, Trash2, Trophy, UserRound, Wind, X, Zap, BarChart3 } from 'lucide-react'
+>>>>>>> a940a252c19e8a401826f131995fe1b69f3a9a17
 import { deleteNotification, getDashboard, getNotifications, getProfile, markAllNotificationsRead, markNotificationRead, updateProfile } from '../../services/householdService.js'
 import { getEnergyHistory } from '../../services/energyService.js'
 import HelpSupportView from '../HelpSupportView.jsx'
+
+const ChartIcon = BarChart3
 
 const formatTime = (value) => value ? new Intl.DateTimeFormat(undefined, { hour: 'numeric', minute: '2-digit' }).format(new Date(value)) : '--'
 const formatWindow = (start, end) => start && end ? `${formatTime(start)} – ${formatTime(end)}` : 'Next daylight window'
@@ -10,7 +17,14 @@ const formatWindow = (start, end) => start && end ? `${formatTime(start)} – ${
 function Stat({ icon: Icon, label, value, suffix = '' }) { return <div className="weather-stat"><Icon size={16} /><span>{label}</span><strong>{value ?? '--'}{suffix}</strong></div> }
 
 function Drawer({ active, onNavigate, onLogout, onClose }) {
-  const items = [{ id: 'dashboard', label: 'Dashboard', icon: Home }, { id: 'solar', label: 'Solar Opportunity', icon: Zap }, { id: 'suggestions', label: 'Energy Suggestions', icon: Sparkles }, { id: 'history', label: 'Energy History', icon: Gauge }, { id: 'savings', label: 'Savings', icon: Zap }, { id: 'notifications', label: 'Notifications', icon: Bell }, { id: 'profile', label: 'Profile', icon: UserRound }, { id: 'help', label: 'Help', icon: CircleHelp }]
+  const items = [
+    { id: 'overview', label: 'Overview', icon: Home },
+    { id: 'solar', label: 'Solar Opportunity', icon: Zap },
+    { id: 'suggestions', label: 'Energy Suggestions', icon: Sparkles },
+    { id: 'history', label: 'Energy History', icon: Gauge },
+    { id: 'profile', label: 'Profile', icon: UserRound },
+    { id: 'notifications', label: 'Notifications', icon: Bell }
+  ]
   return <><div className="drawer-backdrop" onClick={onClose} /><aside className="dashboard-drawer"><div className="drawer-title"><div className="drawer-logo-frame"><img className="drawer-logo-image" src="/esync-logo-final.png" alt="Esync" /></div><button className="icon-action" onClick={onClose} aria-label="Close menu"><X size={18} /></button></div><nav>{items.map(({ id, label, icon: Icon }) => <button key={id} className={active === id ? 'active' : ''} onClick={() => onNavigate(id)}><Icon size={17} />{label}</button>)}</nav><button className="drawer-logout" onClick={onLogout}><LogOut size={17} />Log out</button></aside></>
 }
 
@@ -18,10 +32,11 @@ function NotificationPanel({ notifications, onRead, onReadAll, onDelete, onClose
   return <div className="notification-popover"><div className="popover-header"><div><span className="eyebrow">Your signal feed</span><h3>Notifications</h3></div><button className="icon-action" onClick={onClose} aria-label="Close notifications"><X size={17} /></button></div><button className="read-all" onClick={onReadAll}>Mark all as read</button><div className="notification-list">{notifications.length === 0 ? <p className="empty-state">No recommendations yet.</p> : notifications.map((notification) => <article className={`notification-item ${notification.isRead ? 'read' : ''}`} key={notification._id} onClick={() => onRead(notification._id)}><div className="notification-icon">☀</div><div><strong>{notification.title}</strong><time>{formatTime(notification.createdAt)}</time><p>{notification.message}</p></div><button className="delete-notification" onClick={(event) => { event.stopPropagation(); onDelete(notification._id) }} aria-label="Delete notification"><Trash2 size={14} /></button></article>)}</div></div>
 }
 
-function ProfileView({ profile, onSaved }) {
+function ProfileView({ profile, onSaved, onBack }) {
   const [city, setCity] = useState(profile.city || '')
   const [country, setCountry] = useState(profile.country || '')
   const [message, setMessage] = useState('')
+<<<<<<< HEAD
   const [saving, setSaving] = useState(false)
   const save = async (event) => {
     event.preventDefault()
@@ -154,6 +169,17 @@ function GridStabilizationAnimation() {
   }
   useEffect(() => { let animations = play(); const timer = window.setInterval(() => { animations.forEach((animation) => animation.cancel()); animations = play() }, 7600); return () => { window.clearInterval(timer); animations.forEach((animation) => animation.cancel()) } }, [])
   return <section className="grid-tutorial-scene" ref={sceneRef} aria-label="Smart electricity grid stabilization animation"><div className="grid-tutorial-card"><div className="grid-tutorial-header"><div className="grid-tutorial-icon"><Zap size={21} /></div><span>ELECTRICITY SUPPLIER</span></div><div className="grid-stage"><div className="grid-sun"><Sun size={34} /></div><div className="grid-panel"><span /><span /><span /><span /></div><div className="grid-wind"><Wind size={38} /></div><div className="grid-lines"><i /><i /><i /></div><div className="grid-nodes"><b /><b /><b /><b /></div><div className="grid-particle-route"><i className="grid-particle" /><i className="grid-particle" /><i className="grid-particle" /><i className="grid-particle" /></div></div><svg className="grid-wave-chart" viewBox="0 0 520 92" preserveAspectRatio="none" aria-hidden="true"><path className="grid-supply-wave" d="M4 24 C58 3, 91 48, 140 23 S220 5, 270 38 S350 67, 410 32 S470 8, 516 27" /><path className="grid-demand-wave" d="M4 64 C58 75, 94 35, 140 60 S220 78, 270 48 S350 19, 410 54 S470 71, 516 57" /></svg><div className="grid-result"><strong>12% smoother demand</strong></div><button className="tutorial-replay" type="button" onClick={play} aria-label="Replay grid stabilization animation"><RefreshCw size={16} /></button></div></section>
+=======
+  const handleBack = () => {
+    if (window.history.length > 1) {
+      window.history.back()
+      return
+    }
+    onBack?.()
+  }
+  const save = async (event) => { event.preventDefault(); try { const response = await updateProfile({ city, country }); onSaved(response.user); setMessage(response.message) } catch (error) { setMessage(error.message) } }
+  return <section className="profile-view"><button className="back-action" type="button" onClick={handleBack}><ArrowLeft size={16} />Back to dashboard</button><p className="eyebrow">Your account</p><h2>My Profile</h2><p className="view-intro">Keep your household location current so Esync can read the right sky.</p><div className="profile-grid"><div className="profile-summary"><div className="profile-avatar"><UserRound size={25} /></div><h3>{profile.fullName}</h3><p>{profile.email}</p><span className="profile-tag">🏠 Household</span><dl className="coordinates"><dt>Saved location</dt><dd>{profile.city || 'Not set'}{profile.state ? `, ${profile.state}` : ''}{profile.country ? `, ${profile.country}` : ''}</dd><dt>Coordinates</dt><dd>{profile.latitude !== null && profile.latitude !== undefined ? `${profile.latitude.toFixed(4)}, ${profile.longitude.toFixed(4)}` : 'Added after saving location'}</dd></dl></div><form onSubmit={save} className="profile-form"><label>City<input value={city} onChange={(event) => setCity(event.target.value)} placeholder="Ahmedabad" required /></label><label>Country <span>(optional)</span><input value={country} onChange={(event) => setCountry(event.target.value)} placeholder="India" /></label>{message && <p className="profile-message">{message}</p>}<button className="primary-action" type="submit">Save location <ChevronRight size={16} /></button></form></div></section>
+>>>>>>> a940a252c19e8a401826f131995fe1b69f3a9a17
 }
 
 function HourlyForecast({ weather, recommendation }) {
@@ -212,7 +238,7 @@ function DashboardHome({ data, onLocation }) {
 }
 
 export default function HouseholdDashboard({ user, onLogout }) {
-  const [active, setActive] = useState('dashboard')
+  const [active, setActive] = useState('overview')
   const [drawerOpen, setDrawerOpen] = useState(false)
   const [notificationsOpen, setNotificationsOpen] = useState(false)
   const [notifications, setNotifications] = useState([])
@@ -220,12 +246,131 @@ export default function HouseholdDashboard({ user, onLogout }) {
   const [profile, setProfile] = useState(user)
   const [error, setError] = useState('')
   const unreadCount = notifications.filter((item) => !item.isRead).length
+
+  const navItems = [
+    { id: 'overview', label: 'Overview' },
+    { id: 'solar', label: 'Solar' },
+    { id: 'suggestions', label: 'Suggestions' },
+    { id: 'history', label: 'History' },
+    { id: 'profile', label: 'Profile' }
+  ]
+
+  const sidebarItems = [
+    { id: 'overview', label: 'Household Hub', icon: Home },
+    { id: 'solar', label: 'EV Smart Charging', icon: Zap },
+    { id: 'suggestions', label: 'Industrial Microgrid', icon: Gauge },
+    { id: 'history', label: 'Predictive Analytics & Reports', icon: ChartIcon }
+  ]
+
   const load = async () => { try { setError(''); const [dashboard, notificationData, profileData] = await Promise.all([getDashboard(), getNotifications(), getProfile()]); setData(dashboard); setNotifications(notificationData.notifications); setProfile(profileData.user) } catch (loadError) { if (loadError.code === 'LOCATION_REQUIRED') setActive('profile'); else setError(loadError.message) } }
+
   useEffect(() => { load(); const refreshTimer = window.setInterval(load, 60000); return () => window.clearInterval(refreshTimer) }, [])
+
   const logout = () => { localStorage.removeItem('esync_token'); onLogout() }
-  const navigate = (view) => { setActive(view); setDrawerOpen(false); setNotificationsOpen(view === 'notifications') }
+
+  const scrollToSection = (view) => {
+    setActive(view)
+    setDrawerOpen(false)
+    if (view === 'notifications') {
+      setNotificationsOpen(true)
+      return
+    }
+    setNotificationsOpen(false)
+    const section = document.getElementById(view)
+    if (section) {
+      const offset = 110
+      window.scrollTo({ top: section.getBoundingClientRect().top + window.scrollY - offset, behavior: 'smooth' })
+    }
+  }
+
+  const navigate = (view) => {
+    if (view === 'notifications') {
+      setNotificationsOpen((open) => !open)
+      setActive('notifications')
+      return
+    }
+    scrollToSection(view)
+  }
+
   const markRead = async (id) => { await markNotificationRead(id); setNotifications((items) => items.map((item) => item._id === id ? { ...item, isRead: true } : item)) }
   const markAll = async () => { await markAllNotificationsRead(); setNotifications((items) => items.map((item) => ({ ...item, isRead: true }))) }
   const remove = async (id) => { await deleteNotification(id); setNotifications((items) => items.filter((item) => item._id !== id)) }
+<<<<<<< HEAD
   return <main className="dashboard-shell"><header className="dashboard-header"><div className="dashboard-corner-logo"><img src="/esync-logo-final.png" alt="Esync - A sustainable initiative" /></div><button className="menu-button" onClick={() => setDrawerOpen(true)} aria-label="Open menu"><Menu size={20} /><span>MENU</span></button><div className="header-actions"><span className="header-greeting">{profile.fullName}</span><button className="notification-button" onClick={() => setNotificationsOpen((open) => !open)} aria-label="Open notifications"><Bell size={19} />{unreadCount > 0 && <span>{unreadCount}</span>}</button><button className="avatar-button" onClick={() => navigate('profile')} aria-label="Open profile"><UserRound size={17} /></button></div>{notificationsOpen && <NotificationPanel notifications={notifications} onRead={markRead} onReadAll={markAll} onDelete={remove} onClose={() => setNotificationsOpen(false)} />}</header>{drawerOpen && <Drawer active={active} onNavigate={navigate} onLogout={logout} onClose={() => setDrawerOpen(false)} />}<div className="dashboard-content">{error && <div className="dashboard-error">Weather data is unavailable right now.<button onClick={load}>Try again</button></div>}{active === 'profile' ? <ProfileView profile={profile} onSaved={(nextProfile) => { setProfile(nextProfile); setActive('dashboard'); load() }} /> : active === 'dashboard' ? <DashboardHome data={data} onLocation={() => navigate('profile')} /> : active === 'solar' ? <SolarOpportunityView data={data} onBack={() => navigate('dashboard')} /> : active === 'suggestions' ? <EnergySuggestionsView data={data} onBack={() => navigate('dashboard')} /> : active === 'history' ? <EnergyHistoryView profile={profile} /> : active === 'savings' ? <SavingsView /> : active === 'help' ? <HelpSupportView user={profile} /> : <section className="empty-view"><Sparkles size={30} /><p className="eyebrow">Coming into focus</p><h2>{active === 'notifications' ? 'Your signal feed' : 'Help'}</h2><p>More insights will appear here as Esync grows.</p></section>}</div></main>
+=======
+
+  return (
+    <main className="dashboard-shell">
+      <div className="dashboard-shell-inner">
+        <aside className="dashboard-sidebar">
+          <div className="dashboard-brand-block">VoltShift</div>
+          <nav className="dashboard-sidebar-nav" aria-label="Sidebar navigation">
+            {sidebarItems.map(({ id, label, icon: Icon }) => (
+              <button key={id} type="button" className={active === id ? 'active' : ''} onClick={() => scrollToSection(id)}>
+                <Icon size={16} />
+                <span>{label}</span>
+              </button>
+            ))}
+          </nav>
+        </aside>
+
+        <div className="dashboard-main-panel">
+          <header className="dashboard-header">
+            <div className="topbar-status">
+              <span className="status-dot" />
+              <span>VoltShift</span>
+              <span className="status-separator">•</span>
+              <span>Grid Status: Low</span>
+              <span className="status-separator">•</span>
+              <span>Solar Peak Active</span>
+            </div>
+
+            <div className="header-actions">
+              <span className="header-greeting">{profile.fullName}</span>
+              <button className="notification-button" onClick={() => navigate('notifications')} aria-label="Open notifications">
+                <Bell size={19} />
+                {unreadCount > 0 && <span>{unreadCount}</span>}
+              </button>
+              <button className="avatar-button" onClick={() => scrollToSection('profile')} aria-label="Open profile">
+                <UserRound size={17} />
+              </button>
+            </div>
+
+            {notificationsOpen && <NotificationPanel notifications={notifications} onRead={markRead} onReadAll={markAll} onDelete={remove} onClose={() => setNotificationsOpen(false)} />}
+          </header>
+
+          {drawerOpen && <Drawer active={active} onNavigate={navigate} onLogout={logout} onClose={() => setDrawerOpen(false)} />}
+
+          <div className="dashboard-content">
+            {error && <div className="dashboard-error">Weather data is unavailable right now.<button onClick={load}>Try again</button></div>}
+
+            <section id="overview" className="page-section">
+              <DashboardHome data={data} onLocation={() => scrollToSection('profile')} />
+            </section>
+
+            <section id="solar" className="page-section">
+              <SolarOpportunityView data={data} onBack={() => scrollToSection('overview')} />
+            </section>
+
+            <section id="suggestions" className="page-section">
+              <EnergySuggestionsView data={data} onBack={() => scrollToSection('overview')} />
+            </section>
+
+            <section id="history" className="page-section">
+              {data && <HourlyForecast weather={data.weather} recommendation={data.recommendation} />}
+            </section>
+
+            <section id="profile" className="page-section">
+              <ProfileView
+                profile={profile}
+                onSaved={(nextProfile) => { setProfile(nextProfile); setActive('overview'); load() }}
+                onBack={() => scrollToSection('overview')}
+              />
+            </section>
+          </div>
+        </div>
+      </div>
+    </main>
+  )
+>>>>>>> a940a252c19e8a401826f131995fe1b69f3a9a17
 }

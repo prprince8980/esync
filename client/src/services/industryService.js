@@ -14,10 +14,23 @@ async function request(path, options = {}) {
     throw new Error('The server is unavailable. Please try again.')
   }
 
-  const data = await response.json().catch(() => ({ success: false, message: 'Unexpected server response.' }))
+  let rawText = ''
+  try {
+    rawText = await response.text()
+  } catch {
+    rawText = ''
+  }
+
+  let data
+  try {
+    data = rawText ? JSON.parse(rawText) : { success: false, message: 'Unexpected server response.' }
+  } catch {
+    data = { success: false, message: rawText || 'Unexpected server response.' }
+  }
+
   if (response.status === 401) {
     localStorage.removeItem('esync_token')
-    throw new Error('Your session has expired. Please sign in again.')
+    throw new Error(data.message || 'Your session has expired. Please sign in again.')
   }
   if (!response.ok || !data.success) throw new Error(data.message || 'Industry data request failed.')
   return data

@@ -45,7 +45,7 @@ const userSchema = new mongoose.Schema(
       uppercase: true,
       sparse: true,
       unique: true,
-      match: /^IND-[A-Z0-9-]+$/i
+      match: /^[A-Z0-9][A-Z0-9-]{0,39}$/i
     },
     city: {
       type: String,
@@ -71,6 +71,12 @@ const userSchema = new mongoose.Schema(
       type: Number,
       min: -180,
       max: 180
+    },
+    ecoCoins: {
+      type: Number,
+      default: 0,
+      min: 0,
+      index: true
     }
   },
   { timestamps: true }

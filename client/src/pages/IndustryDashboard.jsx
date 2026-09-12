@@ -1,6 +1,46 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Activity, ArrowLeft, BatteryCharging, CloudSun, Coins, Factory, Gauge, Leaf, LogOut, RefreshCw, ShieldCheck, SunMedium, TrendingUp, Wind, Zap } from 'lucide-react'
+import { Activity, ArrowLeft, BatteryCharging, Bell, CircleHelp, CloudSun, Coins, Factory, Gauge, Leaf, LogOut, Menu, RefreshCw, ShieldCheck, SunMedium, TrendingUp, UserRound, Wind, X, Zap } from 'lucide-react'
 import { getIndustryDashboard } from '../services/industryService.js'
+
+function Drawer({ active, onNavigate, onLogout, onClose }) {
+  const items = [
+    { id: 'dashboard', label: 'Dashboard', icon: Activity },
+    { id: 'performance', label: 'Performance', icon: Gauge },
+    { id: 'source-mix', label: 'Source mix', icon: SunMedium },
+    { id: 'recommendations', label: 'Recommendations', icon: Zap },
+    { id: 'notifications', label: 'Notifications', icon: Bell },
+    { id: 'profile', label: 'Profile', icon: UserRound },
+    { id: 'help', label: 'Help', icon: CircleHelp }
+  ]
+
+  return (
+    <>
+      <div className="drawer-backdrop" onClick={onClose} />
+      <aside className="dashboard-drawer" aria-label="Industry navigation menu">
+        <div className="drawer-title">
+          <div className="drawer-logo-frame">
+            <img className="drawer-logo-image" src="/esync-logo-final.png" alt="Esync" />
+          </div>
+          <button className="icon-action" type="button" onClick={onClose} aria-label="Close menu">
+            <X size={18} />
+          </button>
+        </div>
+        <nav>
+          {items.map(({ id, label, icon: Icon }) => (
+            <button key={id} type="button" className={active === id ? 'active' : ''} onClick={() => onNavigate(id)}>
+              <Icon size={17} />
+              {label}
+            </button>
+          ))}
+        </nav>
+        <button className="drawer-logout" type="button" onClick={onLogout}>
+          <LogOut size={17} />
+          Log out
+        </button>
+      </aside>
+    </>
+  )
+}
 
 function formatNumber(value = 0, digits = 0) {
   return new Intl.NumberFormat('en-IN', { maximumFractionDigits: digits, minimumFractionDigits: digits }).format(Number(value || 0))
@@ -19,6 +59,8 @@ export default function IndustryDashboard({ user, onLogout }) {
   const [dashboard, setDashboard] = useState(null)
   const [status, setStatus] = useState('')
   const [loading, setLoading] = useState(true)
+  const [drawerOpen, setDrawerOpen] = useState(false)
+  const [activeView, setActiveView] = useState('dashboard')
 
   const loadDashboard = async () => {
     try {
@@ -31,6 +73,11 @@ export default function IndustryDashboard({ user, onLogout }) {
     } finally {
       setLoading(false)
     }
+  }
+
+  const navigate = (view) => {
+    setActiveView(view)
+    setDrawerOpen(false)
   }
 
   useEffect(() => { loadDashboard() }, [])
@@ -51,7 +98,7 @@ export default function IndustryDashboard({ user, onLogout }) {
     return (
       <main className="dashboard-shell">
         <div className="dashboard-content">
-          <div className="dashboard-loading">{loading ? 'Loading industry dashboard...' : status || 'No data available yet.'}</div>
+          {loading ? <div className="dashboard-loading">Loading industry dashboard...</div> : <section className="industry-recovery" role="alert"><div className="industry-recovery-icon"><Factory size={24} /></div><p className="eyebrow">Industry access</p><h1>We couldn’t open this dashboard.</h1><p>{status || 'No industry is linked to this account yet.'}</p><p className="industry-recovery-help">You can sign in with a different account, or ask your administrator for the registered Industry Number.</p><div className="industry-recovery-actions"><button className="primary-action" type="button" onClick={onLogout}><ArrowLeft size={16} />Back to sign in</button><button className="subtle-action" type="button" onClick={loadDashboard}><RefreshCw size={15} />Try again</button></div></section>}
         </div>
       </main>
     )
@@ -62,31 +109,42 @@ export default function IndustryDashboard({ user, onLogout }) {
   const windPercent = Math.round(((dashboard.energySources?.wind || 0) / totalSource) * 100)
   const gridPercent = Math.round(((dashboard.energySources?.grid || 0) / totalSource) * 100)
 
+  const industryName = dashboard?.industry?.name || dashboard?.industry?.industryName || 'Industry'
+  const industryType = dashboard?.industry?.industryType || 'Not specified'
+  const industryLocation = dashboard?.industry?.location || 'Not specified'
+  const capacitySolarKw = Number(dashboard?.industry?.capacity?.solarKw ?? dashboard?.industry?.installedSolarCapacity ?? 500)
+  const capacityWindKw = Number(dashboard?.industry?.capacity?.windKw ?? dashboard?.industry?.installedWindCapacity ?? 300)
+  const generationSolarKw = Number(dashboard?.industry?.generation?.solarKw ?? dashboard?.energySources?.solar ?? 283)
+  const generationWindKw = Number(dashboard?.industry?.generation?.windKw ?? dashboard?.energySources?.wind ?? 123)
+  const demandKw = Number(dashboard?.industry?.demandKw ?? dashboard?.liveStatus?.currentLoad ?? 500)
+
   return (
     <main className="dashboard-shell">
       <header className="dashboard-header">
         <div className="dashboard-corner-logo">
           <img src="/esync-logo-final.png" alt="EcoSync logo" />
         </div>
-        <button className="menu-button" type="button" aria-label="Open navigation">
-          <Activity size={18} />
+        <button className="menu-button" type="button" aria-label="Open navigation" onClick={() => setDrawerOpen(true)}>
+          <Menu size={18} />
           <span>Menu</span>
         </button>
         <div className="header-actions">
-          <span className="header-greeting">{user?.fullName || dashboard.industry?.name}</span>
-          <button className="notification-button" type="button" aria-label="Notifications">
+          <span className="header-greeting">{activeView === 'dashboard' ? 'Operating overview' : activeView === 'performance' ? 'Performance' : activeView === 'source-mix' ? 'Source mix' : activeView === 'recommendations' ? 'Recommendations' : activeView === 'notifications' ? 'Notifications' : activeView === 'profile' ? 'Profile' : 'Help'}</span>
+          <button className="notification-button" type="button" aria-label="Notifications" onClick={() => navigate('notifications')}>
             <Zap size={16} />
             <span>{dashboard.notifications?.length || 0}</span>
           </button>
-          <button className="avatar-button" type="button" aria-label="Logout" onClick={onLogout}><LogOut size={15} /></button>
+          <button className="avatar-button" type="button" aria-label="Open profile" onClick={() => navigate('profile')}><UserRound size={15} /></button>
         </div>
       </header>
+
+      {drawerOpen && <Drawer active={activeView} onNavigate={navigate} onLogout={onLogout} onClose={() => setDrawerOpen(false)} />}
 
       <div className="dashboard-content">
         <div className="dashboard-greeting">
           <div>
             <p className="eyebrow">Industrial energy command</p>
-            <h1>{dashboard.industry?.name || 'Industry'} <em>performance</em></h1>
+            <h1>{industryName} <em>performance</em></h1>
           </div>
           <button className="location-chip" type="button" onClick={loadDashboard}>
             <RefreshCw size={14} /> {loading ? 'Refreshing...' : 'Refresh data'}
@@ -111,9 +169,54 @@ export default function IndustryDashboard({ user, onLogout }) {
             <strong>{dashboard.liveStatus?.currentLoad || 0} kW <small>Current load</small></strong>
             <div className="live-time">Last telemetry: {timeAgo(dashboard.liveStatus?.lastTelemetry || new Date())}</div>
             <div className="live-meta">
-              <span>Industry: <b>{dashboard.industry?.name}</b></span>
+              <span>Industry: <b>{industryName}</b></span>
               <span>Industry Number: <b>{dashboard.industry?.industryNumber}</b></span>
               <span>Device: <b>{dashboard.liveStatus?.deviceStatus || 'ONLINE'}</b></span>
+            </div>
+          </div>
+        </section>
+
+        <section className="energy-chart-card" style={{ marginBottom: '18px' }}>
+          <div className="card-heading" style={{ marginBottom: '14px' }}>
+            <div>
+              <p className="eyebrow">Plant profile</p>
+              <h3>Industry details</h3>
+            </div>
+          </div>
+
+          <div style={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
+            gap: '14px 18px',
+            paddingTop: '8px'
+          }}>
+            <div className="weather-stat">
+              <span>Industry type</span>
+              <strong>{industryType}</strong>
+            </div>
+            <div className="weather-stat">
+              <span>Location</span>
+              <strong>{industryLocation}</strong>
+            </div>
+            <div className="weather-stat">
+              <span>Solar capacity</span>
+              <strong>{capacitySolarKw} kW</strong>
+            </div>
+            <div className="weather-stat">
+              <span>Wind capacity</span>
+              <strong>{capacityWindKw} kW</strong>
+            </div>
+            <div className="weather-stat">
+              <span>Solar generation</span>
+              <strong>{generationSolarKw} kW</strong>
+            </div>
+            <div className="weather-stat">
+              <span>Wind generation</span>
+              <strong>{generationWindKw} kW</strong>
+            </div>
+            <div className="weather-stat">
+              <span>Demand</span>
+              <strong>{demandKw} kW</strong>
             </div>
           </div>
         </section>
